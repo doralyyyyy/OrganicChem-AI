@@ -1,6 +1,6 @@
 import "./App.css";
 import { useEffect, useRef, useState } from "react";
-import { Send, RefreshCw, Printer } from "lucide-react";
+import { Send, RefreshCw, Printer, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 
 import ReactMarkdown from "react-markdown";
@@ -49,7 +49,7 @@ function App() {
             const formData = new FormData();
             formData.append("file", file);
 
-            const resp = await fetch("http://localhost:3001/api/ingest", {
+            const resp = await fetch(`${import.meta.env.VITE_API_BASE}/api/ingest`, {
                 method: "POST",
                 body: formData
             });
@@ -118,7 +118,7 @@ function App() {
         setAnswer(null);
 
         try {
-            const resp = await fetch("http://localhost:3001/api/solve", {
+            const resp = await fetch(`${import.meta.env.VITE_API_BASE}/api/solve`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ question, session_id })
@@ -184,7 +184,7 @@ function App() {
         setHistory([]);
         localStorage.removeItem("oc_history_v1");
         try {
-            const resp = await fetch("http://localhost:3001/api/clear", {
+            const resp = await fetch(`${import.meta.env.VITE_API_BASE}/api/clear`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ session_id }) 
@@ -201,18 +201,19 @@ function App() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-white to-slate-50 p-6 flex justify-center">
-            <div className="max-w-6xl w-full space-y-6">
+        <div className="min-h-screen bg-gradient-to-b from-white to-slate-50 p-3 sm:p-6 flex justify-center">
+            <div className="w-full max-w-6xl space-y-6">
                 <motion.header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
                     initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-                    <div className='ml-6'>
+                    <div className='ml-3'>
                         <h1 className="text-3xl font-bold">OrganicChem AI 助教</h1>
                         <br />
                         <p className="text-sm text-slate-500">交互式教学 | 可视化分子 | 可追溯的知识单元</p>
                     </div>
                     <div className="flex gap-3 items-center">
-                        <button onClick={() => { setQuestion(""); setAnswer(null); setSmiles(""); }}
-                            className="px-3 py-2 rounded-lg border flex items-center gap-2"><RefreshCw size={14} /> Reset</button>
+                        <button onClick={handleClearHistory} type="button" className="px-3 py-2 rounded-lg border flex items-center gap-2">
+                            <Trash2 size={14} /> Clear
+                        </button>
                     </div>
                 </motion.header>
 
@@ -221,7 +222,7 @@ function App() {
                         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                             <label className="text-lg font-semibold">输入你的问题</label>
                             <textarea rows={6} value={question} onChange={(e) => setQuestion(e.target.value)}
-                                style={{ width: "400px", maxWidth: "100%" }} className="p-3 border rounded-md text-sm resize-none"
+                                className="w-full p-3 border rounded-md text-sm resize-none"
                                 placeholder="例如：解释 SN1 反应的机理..." />
                             <div className="flex gap-2">
                                 <button type="submit"
@@ -241,13 +242,15 @@ function App() {
                                     placeholder="CCO 或 c1ccccc1"
                                 />
                             </div>
-                            <div className="mt-2 w-full bg-slate-50 border rounded-lg flex items-center justify-center" style={{ height: '250px' }}>
-                                <canvas ref={canvasRef} width={360} height={250} className="mt-2" />
+                            <div className="mt-2 w-full bg-slate-50 border rounded-lg flex items-center justify-center" style={{ aspectRatio: "16/10" }}>
+                                <canvas ref={canvasRef} className="w-full h-full" />
                             </div>
                             <div className="flex justify-between items-center mt-4">
                                 <small className="text-sm text-slate-400">历史记录保存在本地</small>
-                                <div className="flex gap-2">
-                                    <button onClick={handleClearHistory} type="button" className="px-3 py-2 border rounded-md">Clear</button>
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                    <button onClick={() => { setQuestion(""); setAnswer(null); setSmiles(""); }} className="px-3 py-2 border rounded-md flex items-center gap-2">
+                                        <RefreshCw size={14} /> Reset
+                                    </button>
                                     <button onClick={handleExport} type="button" className="px-3 py-2 border rounded-md flex items-center gap-2">
                                         <Printer size={14} /> Export
                                     </button>
@@ -256,7 +259,7 @@ function App() {
                         </form>
                     </section>
 
-                    <section className="md:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6 h-[730px]">
+                    <section className="md:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto md:h-[730px]">
                         <div className="bg-white p-4 rounded-2xl shadow-md flex flex-col" style={{ height: "730px" }}>
                             <motion.h2 className="text-lg font-semibold mb-3">
                                 AI 回答
@@ -284,7 +287,7 @@ function App() {
                             )}
                         </div>
 
-                        <div className="bg-white p-4 rounded-2xl shadow-md flex flex-col h-[730px]">
+                        <div className="bg-white p-4 rounded-2xl shadow-md flex flex-col h-auto md:h-[730px]">
                             <h3 className="text-lg font-semibold mb-3">历史 & 快速复用</h3>
                             {history.length === 0 && <div className="text-sm text-slate-400">暂无历史</div>}
                             <div className="flex-1 flex flex-col gap-2 overflow-auto">
@@ -307,10 +310,12 @@ function App() {
                         </div>
                     </section>
                 </main>
-                <label className="text-lg font-semibold">上传教材/题库</label>
-                    <input type="file" onChange={handleUpload} className="text-sm" />
+                <section className="bg-white p-4 rounded-2xl shadow-md">
+                    <label className="text-lg font-semibold">上传教材/题库</label>
+                    <input type="file" onChange={handleUpload} className="text-sm mt-2" />
                     {uploading && <div className="text-xs text-slate-500">{uploadMsg}</div>}
                     {!uploading && uploadMsg && <div className="text-xs text-green-600">{uploadMsg}</div>}
+                </section>
                 <footer className="mt-8 text-center text-xs text-slate-400">by 24 化院 张嵩仁</footer>
             </div>
         </div>
