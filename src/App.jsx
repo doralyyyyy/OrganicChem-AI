@@ -1,7 +1,8 @@
 import "./App.css";
 import { useEffect, useRef, useState } from "react";
-import { Send, RefreshCw, Printer, Trash2 } from "lucide-react";
+import { Send, RefreshCw, Printer, Trash2, ChevronDown, Upload } from "lucide-react";
 import { motion } from "framer-motion";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -205,13 +206,13 @@ function App() {
             <div className="w-full max-w-6xl space-y-6">
                 <motion.header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
                     initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-                    <div className='ml-3'>
+                    <div className='ml-6'>
                         <h1 className="text-3xl font-bold">OrganicChem AI 助教</h1>
                         <br />
                         <p className="text-sm text-slate-500">交互式教学 | 可视化分子 | 可追溯的知识单元</p>
                     </div>
                     <div className="flex gap-3 items-center">
-                        <button onClick={handleClearHistory} type="button" className="px-3 py-2 rounded-lg border flex items-center gap-2">
+                        <button onClick={handleClearHistory} type="button" className="px-3 py-2 rounded-lg bg-green-600 text-white flex items-center gap-2 hover:bg-green-700">
                             <Trash2 size={14} /> Clear
                         </button>
                     </div>
@@ -229,10 +230,41 @@ function App() {
                                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2">
                                     <Send size={16} /> {loading ? "正在分析..." : "提交问题"}
                                 </button>
-                                <button type="button" onClick={() => setQuestion(q => q + "\n请给出举例说明")}
-                                    className="px-3 py-2 rounded-xl border">示例扩写</button>
+                                <DropdownMenu.Root>
+                                    <DropdownMenu.Trigger asChild>
+                                        <button type="button" className="px-3 py-2 rounded-xl border flex items-center gap-2">
+                                        快速提示
+                                        <ChevronDown size={16} />
+                                        </button>
+                                    </DropdownMenu.Trigger>
+                                    <DropdownMenu.Content align="start" className="bg-white border rounded-md shadow-md p-1 text-sm">
+                                        <DropdownMenu.Item className="px-3 py-2 hover:bg-slate-100 rounded cursor-pointer" 
+                                            onClick={() => setQuestion(q => q + "\n请给出对应的 SMILES 式")}>
+                                            SMILES式
+                                        </DropdownMenu.Item>
+                                        <DropdownMenu.Item className="px-3 py-2 hover:bg-slate-100 rounded cursor-pointer"
+                                            onClick={() => setQuestion(q => q + "\n请附带一个具体反应实例")}>
+                                            反应实例
+                                        </DropdownMenu.Item>
+                                        <DropdownMenu.Item className="px-3 py-2 hover:bg-slate-100 rounded cursor-pointer"
+                                            onClick={() => setQuestion(q => q + "\n请结合实验应用及现象说明")}>
+                                            实验应用
+                                        </DropdownMenu.Item>
+                                        <DropdownMenu.Item className="px-3 py-2 hover:bg-slate-100 rounded cursor-pointer"
+                                            onClick={() => setQuestion(q => q + "\n请生成一道相关练习题")}>
+                                            生成题目
+                                        </DropdownMenu.Item>
+                                        <DropdownMenu.Item className="px-3 py-2 hover:bg-slate-100 rounded cursor-pointer"
+                                            onClick={() => setQuestion(q => q + "\n请总结本问题的学习要点")}>
+                                            总结要点
+                                        </DropdownMenu.Item>
+                                        <DropdownMenu.Item className="px-3 py-2 hover:bg-slate-100 rounded cursor-pointer"
+                                            onClick={() => setQuestion(q => q + "\n请指出常见错误或误区")}>
+                                            常见错误
+                                        </DropdownMenu.Item>
+                                    </DropdownMenu.Content>
+                                    </DropdownMenu.Root>
                             </div>
-
                             <label className="text-lg font-semibold">SMILES 可视化</label>
                             <div className="flex gap-2">
                                 <input
@@ -310,13 +342,18 @@ function App() {
                         </div>
                     </section>
                 </main>
-                <section className="bg-white p-4 rounded-2xl shadow-md">
-                    <label className="text-lg font-semibold">上传教材/题库</label>
-                    <input type="file" onChange={handleUpload} className="text-sm mt-2" />
-                    {uploading && <div className="text-xs text-slate-500">{uploadMsg}</div>}
-                    {!uploading && uploadMsg && <div className="text-xs text-green-600">{uploadMsg}</div>}
+                <section className="bg-white p-6 rounded-2xl shadow-md flex flex-col items-center justify-center border-2 border-dashed border-slate-300 hover:border-green-400 transition-colors">
+                    <label className="text-lg font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                        <Upload size={20} className="text-green-500" />
+                        上传教材/题库
+                    </label>
+                    <input type="file" onChange={handleUpload} 
+                        className="block text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-100 file:text-green-700 hover:file:bg-green-200 cursor-pointer"
+                    />
+                    {uploading && ( <div className="mt-2 text-xs text-slate-500">{uploadMsg}</div> )}
+                    {!uploading && uploadMsg && ( <div className="mt-2 text-xs text-green-600">{uploadMsg}</div> )}
                 </section>
-                <footer className="mt-8 text-center text-xs text-slate-400">by 24 化院 张嵩仁</footer>
+                <footer className="mt-8 text-center text-xs text-slate-400">by 24 化院 张嵩仁 楼晟铭</footer>
             </div>
         </div>
     );
