@@ -2,11 +2,20 @@
 
 ## 一、运行环境
 
-请确保已安装 **Node.js v20.19.5**。
-可通过以下方式获取：
+1. **Node.js 20.19.5**
+   
+   * 前往 [Node.js 官网](https://nodejs.org/) 下载并安装 **Node.js 20.19.5**。
+   * 或直接下载压缩包：[Node.js v20.19.5](https://nodejs.org/dist/v20.19.5/)，解压后将 `node.exe` 路径添加到系统环境变量中。
 
-* 从 [Node.js 官网](https://nodejs.org/) 下载并安装 **Node.js 20.19.5**。
-* 或直接下载压缩包：[Node.js v20.19.5](https://nodejs.org/dist/v20.19.5/)，解压后将 `node.exe` 路径添加到系统环境变量中。
+2. **Imago 2.0.0**
+   
+   * 前往 [Imago 下载页面](https://lifescience.opensource.epam.com/download/imago.html) 下载 **Imago 2.0.0**。
+   * 下载后将 `imago_console.exe` 文件直接放置在 `D:` 盘根目录下。
+
+3. **Open Babel 3.1.1**
+   
+   * 前往 [Open Babel Releases](https://github.com/openbabel/openbabel/releases) 下载并安装 **Open Babel 3.1.1**。
+   * 安装完成后，将 Open Babel 安装目录添加到系统的环境变量中，以便命令行可以直接调用 `obabel`。
 
 ---
 
@@ -88,7 +97,9 @@
 
 ## 四、注意事项
 
-* **必须使用 Node.js 20.19.5，不要使用最新版本**，否则可能出现兼容性问题。
+* **Node.js**：必须使用 **v20.19.5**，不要使用最新版本或其他版本，否则可能出现兼容性问题。
+* **Imago**：必须使用 **2.0.0** 版本，并将 `imago_console.exe` 放置在 D 盘根目录。
+* **Open Babel**：必须使用 **3.1.1** 版本，并将其安装目录添加到系统环境变量。**如果使用其他版本，命令行指令可能不一致，会导致程序出错或功能异常。**
 * 推荐使用 **VS Code** 作为开发和使用环境以便同时打开多个终端和查看输出。
 * 前端与后端需同时运行（前端读取 `.env` 中的 `VITE_API_BASE` 以连接后端）。
 * 修改 `.env` 后需要重启前端（`npm run dev`），否则变更不会生效。
