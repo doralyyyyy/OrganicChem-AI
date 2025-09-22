@@ -229,7 +229,7 @@ function App() {
                 <motion.header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
                     initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
                     <div className='ml-6'>
-                        <h1 className="text-3xl font-bold">OrganicChem AI 助教</h1>
+                        <h1 className="text-3xl font-bold">OrganicChem AI助教</h1>
                         <br />
                         <p className="text-sm text-slate-500">交互式教学 | 可视化分子 | 可追溯的知识单元</p>
                     </div>
