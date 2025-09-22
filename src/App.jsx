@@ -25,8 +25,10 @@ function App() {
     const canvasRef = useRef(null);
     const answerRef = useRef(null); // 渲染后的答案容器的 ref（用于导出打印）
 
+    const [dragActive,setDragActive] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [uploadMsg, setUploadMsg] = useState("");
+    const allowedTypes=["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"];
 
     // 生成或加载 session_id
     const [session_id] = useState(() => {
@@ -65,6 +67,21 @@ function App() {
             setUploadMsg(`❌ 错误: ${err.message}`);
         } finally {
             setUploading(false);
+        }
+    }
+
+    // 拖拽上传用
+    const handleDrop=(e)=>{
+        e.preventDefault()
+        setDragActive(false)
+        const file=e.dataTransfer.files?.[0]
+        if(file){
+            if(!allowedTypes.includes(file.type)){
+                setUploadMsg("❌ 仅支持上传 PDF、Word、TXT 文件")
+                return
+            }
+            const fakeEvent={target:{files:[file]}}
+            handleUpload(fakeEvent)
         }
     }
 
@@ -342,16 +359,21 @@ function App() {
                         </div>
                     </section>
                 </main>
-                <section className="bg-white p-6 rounded-2xl shadow-md flex flex-col items-center justify-center border-2 border-dashed border-slate-300 hover:border-green-400 transition-colors">
-                    <label className="text-lg font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                <section
+                    onDragOver={(e)=>{e.preventDefault();setDragActive(true)}}
+                    onDragLeave={()=>setDragActive(false)}
+                    onDrop={handleDrop}
+                    className={`bg-white p-6 rounded-2xl shadow-md flex flex-col items-center justify-center border-2 border-dashed transition-colors 
+                    ${dragActive?"border-green-400 bg-green-50":"border-slate-300 hover:border-green-400"}`}
+                >
+                    <label className="text-lg font-semibold text-slate-700 mb-3 flex items-center gap-2 cursor-pointer">
                         <Upload size={20} className="text-green-500" />
                         上传教材/题库
+                        <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleUpload} className="hidden"/>
                     </label>
-                    <input type="file" onChange={handleUpload} 
-                        className="block text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-100 file:text-green-700 hover:file:bg-green-200 cursor-pointer"
-                    />
-                    {uploading && ( <div className="mt-2 text-xs text-slate-500">{uploadMsg}</div> )}
-                    {!uploading && uploadMsg && ( <div className="mt-2 text-xs text-green-600">{uploadMsg}</div> )}
+                    <p className="text-xs text-slate-500">拖拽文件到此处，或点击选择文件</p>
+                    {uploading && (<div className="mt-2 text-xs text-slate-500">{uploadMsg}</div>)}
+                    {!uploading && uploadMsg && (<div className="mt-2 text-xs text-green-600">{uploadMsg}</div>)}
                 </section>
                 <footer className="mt-8 text-center text-xs text-slate-400">by 24 化院 张嵩仁 楼晟铭</footer>
             </div>
