@@ -15,6 +15,7 @@ function App() {
     const [smiles, setSmiles] = useState("");
     const [answer, setAnswer] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [image,setImage] = useState(null);
     const [history, setHistory] = useState(() => {
         try {
             return JSON.parse(localStorage.getItem("oc_history_v1")) || [];
@@ -131,15 +132,19 @@ function App() {
 
     async function handleSubmit(e) {
         e?.preventDefault();
-        if (!question.trim()) return;
+        if (!question.trim() && !image) return;
         setLoading(true);
         setAnswer(null);
 
         try {
+            const formData=new FormData();
+            formData.append("question",question);
+            formData.append("session_id",session_id);
+            if(image) formData.append("image",image);
+
             const resp = await fetch(`${import.meta.env.VITE_API_BASE}/api/solve`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ question, session_id })
+                body: formData
             });
 
             // 先拿 raw 文本便于调试（可以改回 resp.json()）
@@ -282,6 +287,20 @@ function App() {
                                     </DropdownMenu.Content>
                                     </DropdownMenu.Root>
                             </div>
+                            <label className="flex flex-col items-center justify-center gap-1 px-4 py-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-green-500 hover:bg-green-50 transition h-10">
+                                <div className="flex items-center gap-2">
+                                    <Upload size={18} className="text-green-500" />
+                                    <span className="text-sm text-slate-600">
+                                        {image ? `已选择: ${image.name}` : "上传图片"}
+                                    </span>
+                                </div>
+                                <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    onChange={(e)=>setImage(e.target.files[0])}
+                                    className="hidden"
+                                />
+                            </label>
                             <label className="text-lg font-semibold">SMILES 可视化</label>
                             <div className="flex gap-2">
                                 <input
@@ -297,7 +316,8 @@ function App() {
                             <div className="flex justify-between items-center mt-4">
                                 <small className="text-sm text-slate-400">历史记录保存在本地</small>
                                 <div className="flex flex-col sm:flex-row gap-2">
-                                    <button onClick={() => { setQuestion(""); setAnswer(null); setSmiles(""); }} className="px-3 py-2 border rounded-md flex items-center gap-2">
+                                    <button onClick={() => { setQuestion(""); setAnswer(null); setSmiles(""); setImage(null); }} 
+                                        className="px-3 py-2 border rounded-md flex items-center gap-2">
                                         <RefreshCw size={14} /> Reset
                                     </button>
                                     <button onClick={handleExport} type="button" className="px-3 py-2 border rounded-md flex items-center gap-2">
@@ -308,8 +328,8 @@ function App() {
                         </form>
                     </section>
 
-                    <section className="md:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto md:h-[730px]">
-                        <div className="bg-white p-4 rounded-2xl shadow-md flex flex-col" style={{ height: "730px" }}>
+                    <section className="md:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto md:h-[740px]">
+                        <div className="bg-white p-4 rounded-2xl shadow-md flex flex-col" style={{ height: "740px" }}>
                             <motion.h2 className="text-lg font-semibold mb-3">
                                 AI 回答
                             </motion.h2>
@@ -336,7 +356,7 @@ function App() {
                             )}
                         </div>
 
-                        <div className="bg-white p-4 rounded-2xl shadow-md flex flex-col h-auto md:h-[730px]">
+                        <div className="bg-white p-4 rounded-2xl shadow-md flex flex-col h-auto md:h-[740px]">
                             <h3 className="text-lg font-semibold mb-3">历史 & 快速复用</h3>
                             {history.length === 0 && <div className="text-sm text-slate-400">暂无历史</div>}
                             <div className="flex-1 flex flex-col gap-2 overflow-auto">
@@ -363,15 +383,15 @@ function App() {
                     onDragOver={(e)=>{e.preventDefault();setDragActive(true)}}
                     onDragLeave={()=>setDragActive(false)}
                     onDrop={handleDrop}
-                    className={`bg-white p-6 rounded-2xl shadow-md flex flex-col items-center justify-center border-2 border-dashed transition-colors 
-                    ${dragActive?"border-green-400 bg-green-50":"border-slate-300 hover:border-green-400"}`}
+                    className={`bg-white p-3 rounded-2xl shadow-md flex flex-col items-center justify-center border-2 border-dashed transition-colors cursor-pointer
+                    ${dragActive?"border-green-400 bg-green-50":"border-slate-300 hover:border-green-400 hover:bg-green-50"}`}
                 >
-                    <label className="text-lg font-semibold text-slate-700 mb-3 flex items-center gap-2 cursor-pointer">
-                        <Upload size={20} className="text-green-500" />
-                        上传教材/题库
+                    <label className="w-full h-full flex flex-col items-center justify-center cursor-pointer">
+                        <Upload size={20} className="text-green-500 mb-2" />
+                        <span className="text-lg font-semibold text-slate-700">上传教材/题库</span>
+                        <p className="text-xs text-slate-500 mt-1">拖拽文件到此处，或点击选择文件</p>
                         <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleUpload} className="hidden"/>
                     </label>
-                    <p className="text-xs text-slate-500">拖拽文件到此处，或点击选择文件</p>
                     {uploading && (<div className="mt-2 text-xs text-slate-500">{uploadMsg}</div>)}
                     {!uploading && uploadMsg && (<div className="mt-2 text-xs text-green-600">{uploadMsg}</div>)}
                 </section>
