@@ -117,6 +117,8 @@ function App() {
         s = s.replace(/\\\[(.*?)\\\]/gs, (_, g1) => `$$${g1}$$`);
         // \( ... \) -> $ ... $
         s = s.replace(/\\\((.*?)\\\)/gs, (_, g1) => `$${g1}$`);
+        // 替换 Unicode 负号为 ASCII
+        s = s.replace(/\u2212/g, "-");
         return s;
     }
 
@@ -172,20 +174,21 @@ function App() {
         const w = window.open("", "_blank");
         if (!w) return alert("Allow popups to export");
 
-        // 获取渲染后的 HTML（innerHTML 已含 KaTeX 渲染后的标签）
-        const rendered = answerRef.current ? answerRef.current.innerHTML : `<pre>${escapeHtml(answer?.text || "")}</pre>`;
+        const rendered = answerRef.current 
+            ? answerRef.current.innerHTML 
+            : `<pre>${escapeHtml(answer?.text || "")}</pre>`;
 
         const html = `<!doctype html>
         <html>
         <head>
         <meta charset="utf-8">
         <title>Export</title>
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.7/dist/katex.min.css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
         <style>
-        body{font-family:Arial, Helvetica, sans-serif; padding:20px; color:#111;}
-        pre{white-space:pre-wrap; word-break:break-word; background:#fafafa; padding:8px; border-radius:6px;}
-        h1{font-size:20px;}
-        h2{font-size:16px; margin-top:18px;}
+        body { font-family: Arial, Helvetica, sans-serif; padding: 20px; color: #111; }
+        pre { white-space: pre-wrap; word-break: break-word; background: #fafafa; padding: 8px; border-radius: 6px; }
+        h1 { font-size: 20px; }
+        h2 { font-size: 16px; margin-top: 18px; }
         .katex .katex-mathml { display: none; }
         </style>
         </head>
@@ -194,13 +197,16 @@ function App() {
         <pre>${escapeHtml(question)}</pre>
         <h1>Answer</h1>
         <div>${rendered}</div>
+        <script>
+        window.onload = function() {
+            setTimeout(()=>window.print(),300); // 等待渲染完成再打印
+        };
+        </script>
         </body>
         </html>`;
 
         w.document.write(html);
         w.document.close();
-        w.focus();
-        w.print();
     }
 
     async function handleClearHistory() {
@@ -228,7 +234,7 @@ function App() {
             <div className="w-full max-w-6xl space-y-6">
                 <motion.header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
                     initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-                    <div className='ml-6'>
+                    <div className='ml-3'>
                         <h1 className="text-3xl font-bold">OrganicChem AI助教</h1>
                         <br />
                         <p className="text-sm text-slate-500">交互式教学 | 可视化分子 | 可追溯的知识单元</p>
@@ -287,10 +293,10 @@ function App() {
                                     </DropdownMenu.Content>
                                     </DropdownMenu.Root>
                             </div>
-                            <label className="flex flex-col items-center justify-center gap-1 px-4 py-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-green-500 hover:bg-green-50 transition h-10">
+                            <label className="flex flex-col items-center justify-center gap-1 px-4 py-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-green-500 hover:bg-green-50 transition h-11">
                                 <div className="flex items-center gap-2">
                                     <Upload size={18} className="text-green-500" />
-                                    <span className="text-sm text-slate-600">
+                                    <span className="text-slate-600">
                                         {image ? `已选择: ${image.name}` : "上传图片"}
                                     </span>
                                 </div>
