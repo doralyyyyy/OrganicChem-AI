@@ -401,7 +401,7 @@ function App() {
                     {uploading && (<div className="mt-2 text-xs text-slate-500">{uploadMsg}</div>)}
                     {!uploading && uploadMsg && (<div className="mt-2 text-xs text-green-600">{uploadMsg}</div>)}
                 </section>
-                <footer className="mt-8 text-center text-xs text-slate-400">by 24 化院 张嵩仁 楼晟铭</footer>
+                <footer className="mt-8 text-center text-xs text-slate-400">by 24 化院 张嵩仁 楼晟铭 周楚越</footer>
             </div>
         </div>
     );
