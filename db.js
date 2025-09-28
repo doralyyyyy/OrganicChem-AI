@@ -48,11 +48,7 @@ export function listDocs() {
 }
 
 export function getAllChunks() {
-    return db.prepare(`
-        SELECT c.id, c.doc_id, c.content, c.embedding, d.filename
-        FROM chunks c
-        LEFT JOIN docs d ON c.doc_id = d.id
-    `).all();
+  return db.prepare("SELECT c.id, c.doc_id, c.content, c.embedding, d.filename FROM chunks c LEFT JOIN docs d ON c.doc_id = d.id").all();
 }
 
 export function getChunksByDoc(doc_id) {
