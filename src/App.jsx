@@ -8,7 +8,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import "katex/dist/katex.min.css"; // KaTeX 样式，用于页面内渲染
+import "katex/dist/katex.min.css";
+import "katex/contrib/mhchem"; // KaTeX 样式，用于页面内渲染
 
 function App() {
     const [question, setQuestion] = useState("");
