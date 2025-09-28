@@ -211,20 +211,6 @@ function App() {
         w.document.close();
     }
 
-    // 朗读函数
-    function handleSpeak() {
-        if (!answer?.text) return;
-
-        const utterance = new SpeechSynthesisUtterance(answer.text);
-        utterance.lang = "zh-CN"; // 英文为'en-US'
-        
-        utterance.onstart = () => setSpeaking(true);
-        utterance.onend = () => setSpeaking(false);
-        utterance.onerror = () => setSpeaking(false);
-
-        window.speechSynthesis.speak(utterance);
-    }
-
     async function handleClearHistory() {
         setHistory([]);
         localStorage.removeItem("oc_history_v1");
