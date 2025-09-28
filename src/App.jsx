@@ -24,6 +24,7 @@ function App() {
             return [];
         }
     });
+    const [historySearch, setHistorySearch] = useState("");
     const canvasRef = useRef(null);
     const answerRef = useRef(null); // 渲染后的答案容器的 ref（用于导出打印）
 
@@ -210,6 +211,20 @@ function App() {
         w.document.close();
     }
 
+    // 朗读函数
+    function handleSpeak() {
+        if (!answer?.text) return;
+
+        const utterance = new SpeechSynthesisUtterance(answer.text);
+        utterance.lang = "zh-CN"; // 英文为'en-US'
+        
+        utterance.onstart = () => setSpeaking(true);
+        utterance.onend = () => setSpeaking(false);
+        utterance.onerror = () => setSpeaking(false);
+
+        window.speechSynthesis.speak(utterance);
+    }
+
     async function handleClearHistory() {
         setHistory([]);
         localStorage.removeItem("oc_history_v1");
@@ -365,9 +380,19 @@ function App() {
 
                         <div className="bg-white p-4 rounded-2xl shadow-md flex flex-col h-auto md:h-[740px]">
                             <h3 className="text-lg font-semibold mb-3">历史 & 快速复用</h3>
+                            <input
+                                type="text"
+                                placeholder="搜索历史..."
+                                value={historySearch}
+                                onChange={(e) => setHistorySearch(e.target.value)}
+                                className="mb-2 w-full p-2 border rounded-md text-sm"
+                            />
                             {history.length === 0 && <div className="text-sm text-slate-400">暂无历史</div>}
                             <div className="flex-1 flex flex-col gap-2 overflow-auto">
-                                {history.map((h, idx) => (
+                                {history
+                                .filter(h => (h.query || "").toLowerCase().includes(historySearch.toLowerCase()) || 
+                                             (h.text || "").toLowerCase().includes(historySearch.toLowerCase()))
+                                .map((h, idx) => (
                                     <div key={h.id || idx} className="p-3 rounded-md border hover:bg-slate-50">
                                         <div className="flex justify-between items-start">
                                             <div className="text-sm font-medium">{h.query?.slice(0, 80)}</div>
@@ -402,7 +427,19 @@ function App() {
                     {uploading && (<div className="mt-2 text-xs text-slate-500">{uploadMsg}</div>)}
                     {!uploading && uploadMsg && (<div className="mt-2 text-xs text-green-600">{uploadMsg}</div>)}
                 </section>
-                <footer className="mt-8 text-center text-xs text-slate-400">by 24 化院 张嵩仁 楼晟铭 周楚越</footer>
+                <footer className="mt-8 text-center text-xs text-slate-400 space-y-1">
+                    <div>
+                        <a 
+                            href="https://github.com/doralyyyyy/OrganicChem-AI" 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-blue-600 hover:underline"
+                        >
+                            GitHub 项目地址
+                        </a>
+                    </div>
+                    <div>by 24 化院 张嵩仁 楼晟铭 周楚越</div>
+                </footer>
             </div>
         </div>
     );
