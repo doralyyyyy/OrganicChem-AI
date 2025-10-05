@@ -1,6 +1,6 @@
 import "./App.css";
 import { useEffect, useRef, useState } from "react";
-import { Send, RefreshCw, Printer, Trash2, ChevronDown, Upload } from "lucide-react";
+import { Send, RefreshCw, Printer, Trash2, ChevronDown, Upload, Mic } from "lucide-react";
 import { motion } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 
@@ -16,6 +16,7 @@ function App() {
     const [smiles, setSmiles] = useState("");
     const [answer, setAnswer] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [listening,setListening]=useState(false);
     const [image,setImage] = useState(null);
     const [history, setHistory] = useState(() => {
         try {
@@ -141,6 +142,29 @@ function App() {
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
+    }
+
+    function handleVoiceInput(){
+        if(!("webkitSpeechRecognition" in window)){
+            alert("你的浏览器不支持语音识别，请使用最新版 Chrome");
+            return;
+        }
+        const r=new window.webkitSpeechRecognition();
+        r.lang="zh-CN"; // 可改为 "en-US" 或自动选择
+        r.continuous=false;
+        r.interimResults=false;
+        setListening(true);
+        r.start();
+
+        r.onresult=(e)=>{
+            const t=e.results[0][0].transcript;
+            setQuestion(q=>q?(q+" "+t):t);
+        };
+        r.onerror=(e)=>{
+            console.error("语音识别错误:",e);
+            alert("语音识别出错："+e.error);
+        };
+        r.onend=()=>setListening(false);
     }
 
     async function handleSubmit(e) {
@@ -288,9 +312,23 @@ function App() {
                     <section className="md:col-span-1 bg-white p-4 rounded-2xl shadow-md flex flex-col gap-4">
                         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                             <label className="text-lg font-semibold">输入你的问题</label>
-                            <textarea rows={6} value={question} onChange={(e) => setQuestion(e.target.value)}
-                                className="w-full p-3 border rounded-md text-sm resize-none"
-                                placeholder="例如：解释 SN1 反应的机理..." />
+                            <div className="relative">
+                                <textarea
+                                    rows={6}
+                                    value={question}
+                                    onChange={(e)=>setQuestion(e.target.value)}
+                                    className="w-full p-3 border rounded-md text-sm resize-none pr-10"
+                                    placeholder="例如：解释 SN1 反应的机理..."
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleVoiceInput}
+                                    className={`absolute right-1 bottom-2.5 p-2 rounded-md ${listening?"bg-red-500 text-white":"bg-slate-100 hover:bg-slate-200"}`}
+                                    title={listening?"正在聆听...":"语音输入"}
+                                >
+                                    <Mic size={16}/>
+                                </button>
+                            </div>
                             <div className="flex gap-2">
                                 <button type="submit"
                                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2">
