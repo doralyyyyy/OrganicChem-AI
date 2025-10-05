@@ -97,13 +97,18 @@ function App() {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
+        const rect = canvas.getBoundingClientRect();
+        const size = Math.min(rect.width, rect.height);
+        canvas.width = size;
+        canvas.height = size;
+
         const ctx = canvas.getContext("2d");
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, size, size);
 
         if (!smiles) return;
 
         try {
-            const smilesDrawer = new SmilesDrawer.Drawer({ width: 360, height: 220 });
+            const smilesDrawer = new SmilesDrawer.Drawer({ width: size, height: size });
             SmilesDrawer.parse(smiles, function(tree) {
                 smilesDrawer.draw(tree, canvas, "light", false);
             });
@@ -318,9 +323,12 @@ function App() {
                                     placeholder="CCO 或 c1ccccc1"
                                 />
                             </div>
-                            <div className="mt-2 w-full bg-slate-50 border rounded-lg flex items-center justify-center" style={{ aspectRatio: "16/10" }}>
-                                <canvas ref={canvasRef} className="w-full h-full" />
+                            <div className="w-full flex justify-center items-center">
+                                <div className="w-[90vw] max-w-[360px] bg-slate-50 border rounded-lg flex justify-center items-center h-[260px] md:h-[260px] lg:h-[210px] overflow-hidden">
+                                    <canvas ref={canvasRef} className="w-full h-full object-contain"/>
+                                </div>
                             </div>
+
                             <div className="flex justify-between items-center mt-4">
                                 <small className="text-sm text-slate-400">历史记录保存在本地</small>
                                 <div className="flex flex-col sm:flex-row gap-2">
@@ -364,7 +372,7 @@ function App() {
                             )}
                         </div>
 
-                        <div className="bg-white p-4 rounded-2xl shadow-md flex flex-col h-auto md:h-[740px]">
+                        <div className="bg-white p-4 rounded-2xl shadow-md flex flex-col h-[740px]">
                             <h3 className="text-lg font-semibold mb-3">历史 & 快速复用</h3>
                             <input
                                 type="text"
