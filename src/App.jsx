@@ -28,10 +28,14 @@ function App() {
     const canvasRef = useRef(null);
     const answerRef = useRef(null); // 渲染后的答案容器的 ref（用于导出打印）
 
-    const [dragActive,setDragActive] = useState(false);
+    const [dragActive, setDragActive] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [uploadMsg, setUploadMsg] = useState("");
     const allowedTypes=["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"];
+
+    const [feedback,setFeedback]=useState("");
+    const [feedbackMsg,setFeedbackMsg]=useState("");
+    const [sending,setSending]=useState(false);
 
     // 生成或加载 session_id
     const [session_id] = useState(() => {
@@ -236,6 +240,33 @@ function App() {
         }
     }
 
+    async function handleFeedback() {
+        if(!feedback.trim()) return setFeedbackMsg("请输入反馈内容");
+        setSending(true);
+        setFeedbackMsg("");
+        try {
+            const resp=await fetch(`${import.meta.env.VITE_API_BASE}/api/feedback`,{
+                method:"POST",
+                headers:{"Content-Type":"application/json"},
+                body:JSON.stringify({
+                    session_id,
+                    message:feedback
+                })
+            });
+            const data=await resp.json();
+            if (data.ok) {
+                setFeedbackMsg("✅ 感谢反馈，我们会尽快处理！");
+                setFeedback("");
+            } else {
+                setFeedbackMsg("❌ 发送失败："+data.message);
+            }
+        } catch (err) {
+            setFeedbackMsg("❌ 网络错误："+err.message);
+        } finally {
+            setSending(false);
+        }
+    }
+
     return (
         <div className="min-h-screen bg-gradient-to-b from-white to-slate-50 p-3 sm:p-6 flex justify-center">
             <div className="w-full max-w-6xl space-y-6">
@@ -325,7 +356,7 @@ function App() {
                             </div>
                             <div className="w-full flex justify-center items-center">
                                 <div className="w-[90vw] max-w-[360px] bg-slate-50 border rounded-lg flex justify-center items-center h-[260px] md:h-[260px] lg:h-[210px] overflow-hidden">
-                                    <canvas ref={canvasRef} className="w-full h-full object-contain"/>
+                                    <canvas ref={canvasRef} className="w-full h-full lg:h-[280px] object-contain"/>
                                 </div>
                             </div>
 
@@ -421,6 +452,29 @@ function App() {
                     {uploading && (<div className="mt-2 text-xs text-slate-500">{uploadMsg}</div>)}
                     {!uploading && uploadMsg && (<div className="mt-2 text-xs text-green-600">{uploadMsg}</div>)}
                 </section>
+
+                <section className="bg-white p-4 rounded-2xl shadow-md flex flex-col gap-3">
+                    <h3 className="text-lg font-semibold">发送反馈</h3>
+                    <textarea
+                        rows={3}
+                        placeholder="告诉我们你的问题或建议..."
+                        value={feedback}
+                        onChange={(e) => setFeedback(e.target.value)}
+                        className="w-full p-2 border rounded-md text-sm resize-none"
+                    />
+                    <div className="flex justify-end">
+                        <button
+                            onClick={handleFeedback}
+                            disabled={sending}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
+                        >
+                            <Send size={14} />
+                            {sending ? "正在发送..." : "发送反馈"}
+                        </button>
+                    </div>
+                    {feedbackMsg && <div className="text-sm text-green-600">{feedbackMsg}</div>}
+                </section>
+
                 <footer className="mt-8 text-center text-xs text-slate-400 space-y-1">
                     <div>
                         <a 

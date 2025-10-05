@@ -11,6 +11,7 @@ import os from "os";
 import { execFile } from "child_process";
 import { ingestFileToDB, getEmbedding } from "./ingest-utils.js";
 import { listDocs, getAllChunks, insertChat, getChats, clearChats } from "./db.js";
+import nodemailer from "nodemailer";
 
 dotenv.config();
 
@@ -132,6 +133,7 @@ async function callBaiduOCR(imagePath) {
   }
 }
 
+// Imago 结构式识别函数
 async function recognizeStructureWithImago(imagePath) {
   const imagoPath = process.env.IMAGO_PATH;
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "imago-"));
@@ -316,6 +318,36 @@ app.post("/api/clear", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: true, message: err.message || String(err) });
   }
+});
+
+// 反馈接口
+app.post("/api/feedback", async (req,res)=>{
+    try{
+        const {message,session_id}=req.body;
+        if(!message) return res.json({ok:false,message:"Empty message"});
+        
+        const transporter=nodemailer.createTransport({
+            host: "smtp.qq.com",
+            port: 465,
+            secure: true,
+            auth: {
+                user: process.env.FEEDBACK_EMAIL_USER,
+                pass: process.env.FEEDBACK_EMAIL_PASS
+            }
+        });
+
+        await transporter.sendMail({
+            from:`OrganicChem AI <${process.env.FEEDBACK_EMAIL_USER}>`,
+            to:"1017944978@qq.com",
+            subject:`[OrganicChem-AI 使用反馈] from ${session_id}`,
+            text:message
+        });
+
+        res.json({ok:true});
+    }catch(err){
+        console.error(err);
+        res.json({ok:false,message:err.message});
+    }
 });
 
 app.listen(port, () => {
