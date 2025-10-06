@@ -27,8 +27,8 @@ app.use(express.json());
 
 // DeepSeek 客户端
 const client = new OpenAI({
-    apiKey: process.env.DEEPSEEK_API_KEY,
-    baseURL: "https://api.deepseek.com/v1"
+  apiKey: process.env.DEEPSEEK_API_KEY,
+  baseURL: "https://api.deepseek.com/v1"
 });
 
 // multer 上传目录
@@ -47,15 +47,15 @@ const upload = multer({ storage });
 
 // 余弦相似度函数
 function dot(a, b) {
-    let s = 0;
-    for (let i = 0; i < a.length; i++) s += a[i] * b[i];
-    return s;
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += a[i] * b[i];
+  return s;
 }
 function norm(a) {
-    return Math.sqrt(dot(a, a));
+  return Math.sqrt(dot(a, a));
 }
 function cosineSim(a, b) {
-    return dot(a, b) / (norm(a) * norm(b) + 1e-8);
+  return dot(a, b) / (norm(a) * norm(b) + 1e-8);
 }
 
 // 上传并导入文档
@@ -321,33 +321,33 @@ app.post("/api/clear", async (req, res) => {
 });
 
 // 反馈接口
-app.post("/api/feedback", async (req,res)=>{
-    try{
-        const {message,session_id}=req.body;
-        if(!message) return res.json({ok:false,message:"Empty message"});
-        
-        const transporter=nodemailer.createTransport({
-            host: "smtp.qq.com",
-            port: 465,
-            secure: true,
-            auth: {
-                user: process.env.FEEDBACK_EMAIL_USER,
-                pass: process.env.FEEDBACK_EMAIL_PASS
-            }
-        });
+app.post("/api/feedback", async (req,res)=> {
+  try {
+    const {message,session_id}=req.body;
+    if(!message) return res.json({ok:false,message:"Empty message"});
+    
+    const transporter=nodemailer.createTransport({
+      host: "smtp.qq.com",
+      port: 465,
+      secure: true,
+      auth: {
+          user: process.env.FEEDBACK_EMAIL_USER,
+          pass: process.env.FEEDBACK_EMAIL_PASS
+      }
+    });
 
-        await transporter.sendMail({
-            from:`OrganicChem AI <${process.env.FEEDBACK_EMAIL_USER}>`,
-            to:"1017944978@qq.com",
-            subject:`[OrganicChem-AI 使用反馈] from ${session_id}`,
-            text:message
-        });
+    await transporter.sendMail({
+      from:`OrganicChem AI <${process.env.FEEDBACK_EMAIL_USER}>`,
+      to:"1017944978@qq.com",
+      subject:`[OrganicChem-AI 使用反馈] from ${session_id}`,
+      text:message
+    });
 
-        res.json({ok:true});
-    }catch(err){
-        console.error(err);
-        res.json({ok:false,message:err.message});
-    }
+    res.json({ok:true});
+  } catch (err) {
+    console.error(err);
+    res.json({ok:false,message:err.message});
+  }
 });
 
 app.listen(port, () => {

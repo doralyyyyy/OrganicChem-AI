@@ -1,6 +1,7 @@
 import "./App.css";
 import { useEffect, useRef, useState } from "react";
-import { Send, RefreshCw, Printer, Trash2, ChevronDown, Upload, Mic } from "lucide-react";
+import { Send, RefreshCw, Printer, Trash2, ChevronDown, Upload, Mic, Paperclip } from "lucide-react";
+import { BiSend } from "react-icons/bi";
 import { motion } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 
@@ -371,7 +372,7 @@ function App() {
                             </div>
                             <label className="flex flex-col items-center justify-center gap-1 px-4 py-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-green-500 hover:bg-green-50 transition h-11">
                                 <div className="flex items-center gap-2">
-                                    <Upload size={18} className="text-green-500" />
+                                    <Paperclip size={18} className="text-green-500" />
                                     <span className="text-slate-600">
                                         {image ? `已选择: ${image.name}` : "上传图片"}
                                     </span>
@@ -506,7 +507,7 @@ function App() {
                             disabled={sending}
                             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
                         >
-                            <Send size={14} />
+                            <BiSend size={14} />
                             {sending ? "正在发送..." : "发送反馈"}
                         </button>
                     </div>
