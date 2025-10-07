@@ -10,7 +10,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
-import "katex/contrib/mhchem"; // KaTeX 样式，用于页面内渲染
+import "katex/contrib/mhchem";
 
 function App() {
     const [question, setQuestion] = useState("");
@@ -28,7 +28,7 @@ function App() {
     });
     const [historySearch, setHistorySearch] = useState("");
     const canvasRef = useRef(null);
-    const answerRef = useRef(null); // 渲染后的答案容器的 ref（用于导出打印）
+    const answerRef = useRef(null);
 
     const [dragActive, setDragActive] = useState(false);
     const [uploading, setUploading] = useState(false);
@@ -126,9 +126,7 @@ function App() {
     // 把 \[...\] / \(...\) 等 LaTeX 定界符转换成常见的 $$...$$ / $...$（便于 remark-math 识别）
     function preprocessMathDelimiters(s = "") {
         if (!s) return "";
-        // \[ ... \] -> $$ ... $$
         s = s.replace(/\\\[(.*?)\\\]/gs, (_, g1) => `$$${g1}$$`);
-        // \( ... \) -> $ ... $
         s = s.replace(/\\\((.*?)\\\)/gs, (_, g1) => `$${g1}$`);
         // 替换 Unicode 负号为 ASCII
         s = s.replace(/\u2212/g, "-");
@@ -151,7 +149,7 @@ function App() {
             return;
         }
         const r=new window.webkitSpeechRecognition();
-        r.lang="zh-CN"; // 可改为 "en-US" 或自动选择
+        r.lang="zh-CN";
         r.continuous=false;
         r.interimResults=false;
         setListening(true);
@@ -184,10 +182,8 @@ function App() {
                 method: "POST",
                 body: formData
             });
-
-            // 先拿 raw 文本便于调试（可以改回 resp.json()）
+            
             const raw = await resp.text();
-            // 尝试解析 JSON，若后端返回了错误页会走到 catch
             const data = JSON.parse(raw);
 
             // 拼接内容和书名引用
