@@ -853,8 +853,8 @@ h2 { font-size: 16px; margin-top: 18px; }
     }
   }
 
-  // smiles draw (dpr + debounce)
-  const drawSmiles = useCallback(() => {
+  // SMILES 渲染 —— 即时（无防抖）+ 高清 DPR
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -862,6 +862,7 @@ h2 { font-size: 16px; margin-top: 18px; }
     const size = Math.min(rect.width, rect.height);
     const dpr = Math.max(window.devicePixelRatio || 1, 1);
 
+    // 先设物理像素，后设变换矩阵，确保清晰
     canvas.width = Math.floor(size * dpr);
     canvas.height = Math.floor(size * dpr);
 
@@ -869,28 +870,22 @@ h2 { font-size: 16px; margin-top: 18px; }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, size, size);
 
-    if (!smiles) {
+    if (!smiles) { 
       setSmilesError("");
-      return;
+      return; 
     }
-
-    if (!window.SmilesDrawer) {
-      setSmilesError("未找到 SmilesDrawer（已尝试自动加载）。");
+    if (!window.SmilesDrawer || !smilesLibReady) {
+      setSmilesError("未找到 SmilesDrawer（正在加载库）");
       return;
     }
 
     setSmilesError("");
     try {
-      const drawer = new window.SmilesDrawer.Drawer({
-        width: size,
-        height: size,
-      });
+      const drawer = new window.SmilesDrawer.Drawer({ width: size, height: size });
       window.SmilesDrawer.parse(
         smiles,
-        function (tree) {
-          drawer.draw(tree, canvas, "light", false);
-        },
-        function (err) {
+        (tree) => drawer.draw(tree, canvas, "light", false),
+        (err) => {
           console.error("SMILES 解析失败:", err);
           setSmilesError("SMILES 解析失败，请检查格式。");
         }
@@ -899,14 +894,7 @@ h2 { font-size: 16px; margin-top: 18px; }
       console.error("SMILES 绘制失败:", err);
       setSmilesError("SMILES 绘制失败。");
     }
-  }, [smiles]);
-  const smilesDebounceRef = useRef(null);
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    if (smilesDebounceRef.current) clearTimeout(smilesDebounceRef.current);
-    smilesDebounceRef.current = setTimeout(drawSmiles, 160);
-    return () => clearTimeout(smilesDebounceRef.current);
-  }, [smiles, smilesLibReady, drawSmiles]);
+  }, [smiles, smilesLibReady]);
 
   // UI
   return (
