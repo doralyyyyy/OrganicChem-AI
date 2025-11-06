@@ -941,7 +941,7 @@ h2 { font-size: 16px; margin-top: 18px; }
               aria-label="清空历史"
               title="清空历史"
             >
-              <Trash2 size={14} /> Clear
+              <Trash2 size={14} /> 清除历史
             </button>
           </div>
         </motion.header>
