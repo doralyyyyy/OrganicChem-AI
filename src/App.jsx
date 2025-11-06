@@ -93,7 +93,7 @@ function AnimatedLoader({ label = "系统正在检索答案…", size = 160, img
 
             {/* 外圈：渐变描边 + 旋转 + 虚线流动 */}
             <g className="oc-ring">
-              <circle cx="56" cy="58" r="44" fill="none" stroke="url(#ocGrad)" strokeWidth="3" />
+              <circle cx="60" cy="60" r="44" fill="none" stroke="url(#ocGrad)" strokeWidth="3" />
             </g>
 
             {/* 六边形：呼吸感 + 节点脉冲 */}
