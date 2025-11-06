@@ -10,8 +10,24 @@ import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
 import nodemailer from "nodemailer";
 
-import { ingestFileToDB, getEmbedding } from "./ingest-utils.js";
-import { listDocs, getAllChunks, insertChat, getChats, clearChats } from "./db.js";
+import {
+  ingestFileToDB,
+  getEmbedding
+} from "./ingest-utils.js";
+import {
+  listDocs,
+  getAllChunks,
+  insertChat,
+  getChats,
+  clearChats,
+  // 新增导入
+  listDocsWithStats,
+  getDocById,
+  getChunksByDoc,
+  deleteChunkById,
+  deleteDocCascade,
+  countChunksForDoc
+} from "./db.js";
 
 dotenv.config();
 
@@ -30,13 +46,12 @@ for (const key of REQUIRED_ENVS) {
 app.use(
   cors({
     origin: "*",
-    methods: ["GET", "POST", "OPTIONS"],
+    methods: ["GET", "POST", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     preflightContinue: false,
     optionsSuccessStatus: 204,
   })
 );
-// app.options("*", cors());
 
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
@@ -210,6 +225,72 @@ app.get("/api/docs", (req, res) => {
   }
 });
 
+// === 新增：文档库管理 REST ===
+
+// 文档列表 + chunk 数
+app.get("/api/docs/stats", (req, res) => {
+  try {
+    const docs = listDocsWithStats();
+    res.json({ ok: true, docs });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 文档详情（含全文）+ chunk 计数
+app.get("/api/doc/:id", (req, res) => {
+  try {
+    const id = req.params.id;
+    const doc = getDocById(id);
+    if (!doc) return res.status(404).json({ ok: false, message: "Doc not found" });
+    const chunk_count = countChunksForDoc(id);
+    res.json({ ok: true, doc: { ...doc, chunk_count } });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 文档 chunks 列表
+app.get("/api/doc/:id/chunks", (req, res) => {
+  try {
+    const id = req.params.id;
+    const rows = getChunksByDoc(id) || [];
+    // 仅返回必要字段，避免 embedding 过大
+    const chunks = rows.map(r => ({
+      id: r.id,
+      content: r.content,
+      created_at: r.created_at
+    }));
+    res.json({ ok: true, chunks });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 删除单个 chunk
+app.delete("/api/chunk/:id", (req, res) => {
+  try {
+    const id = req.params.id;
+    const changes = deleteChunkById(id);
+    if (!changes) return res.status(404).json({ ok: false, message: "Chunk not found" });
+    res.json({ ok: true, deleted: changes });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 删除整个文档（及所有 chunks）
+app.delete("/api/doc/:id", (req, res) => {
+  try {
+    const id = req.params.id;
+    const { delChunks, delDoc } = deleteDocCascade(id);
+    if (!delDoc) return res.status(404).json({ ok: false, message: "Doc not found" });
+    res.json({ ok: true, deletedDoc: delDoc, deletedChunks: delChunks });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
 // 检索接口（调试用）
 app.post("/api/search", async (req, res) => {
   const { query, topK = 5 } = req.body || {};
@@ -316,7 +397,6 @@ app.post("/api/solve", upload.single("image"), async (req, res) => {
 
     let answerText = "";
 
-    // 兼容两种风格的工具调用返回
     const firstMsg = first?.choices?.[0]?.message || {};
     const toolCalls =
       firstMsg?.tool_calls ||

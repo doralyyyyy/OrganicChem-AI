@@ -18,7 +18,10 @@ import {
   StopCircle,
   Copy,
   Download,
-  X
+  X,
+  BookOpen,
+  ChevronLeft,
+  Search
 } from "lucide-react";
 import { BiSend } from "react-icons/bi";
 import { motion } from "framer-motion";
@@ -78,9 +81,9 @@ function AnimatedLoader({ label = "系统正在检索答案…", size = 160, img
           <svg viewBox="0 0 120 120" aria-hidden="true">
             <defs>
               <linearGradient id="ocGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%"   stopColor="#10b981" /> {/* emerald-500 */}
-                <stop offset="55%"  stopColor="#60a5fa" /> {/* blue-400 */}
-                <stop offset="100%" stopColor="#a78bfa" /> {/* violet-400 */}
+                <stop offset="0%"   stopColor="#10b981" />
+                <stop offset="55%"  stopColor="#60a5fa" />
+                <stop offset="100%" stopColor="#a78bfa" />
               </linearGradient>
               <filter id="ocGlow" x="-50%" y="-50%" width="200%" height="200%">
                 <feGaussianBlur stdDeviation="1.8" result="blur"/>
@@ -119,6 +122,335 @@ function AnimatedLoader({ label = "系统正在检索答案…", size = 160, img
   );
 }
 
+/** =========================
+ * 文档管理器（全屏弹层页面）
+ * ========================= */
+function DocumentManager({ onClose }) {
+  const API = import.meta.env.VITE_API_BASE;
+  const [view, setView] = useState("list"); // 'list' | 'doc'
+  const [loading, setLoading] = useState(false);
+  const [docs, setDocs] = useState([]);
+  const [docFilter, setDocFilter] = useState("");
+  const [selected, setSelected] = useState(null); // {id, filename, created_at, text, chunk_count}
+  const [chunks, setChunks] = useState([]);
+  const [chunkFilter, setChunkFilter] = useState("");
+  const [showDocText, setShowDocText] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const totalChunks = useMemo(
+    () => docs.reduce((s, d) => s + (d.chunk_count || 0), 0),
+    [docs]
+  );
+
+  async function fetchDocs() {
+    setLoading(true);
+    setMessage("");
+    try {
+      const res = await fetch(`${API}/api/docs/stats`);
+      const data = await res.json();
+      if (data?.ok) {
+        setDocs(data.docs || []);
+      } else {
+        setMessage(data?.message || "加载失败");
+      }
+    } catch (e) {
+      setMessage(e.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function openDoc(docId) {
+    setLoading(true);
+    setMessage("");
+    try {
+      const metaRes = await fetch(`${API}/api/doc/${docId}`);
+      const meta = await metaRes.json();
+      if (!meta?.ok || !meta?.doc) throw new Error(meta?.message || "获取文档信息失败");
+
+      const chRes = await fetch(`${API}/api/doc/${docId}/chunks`);
+      const chData = await chRes.json();
+      if (!chData?.ok) throw new Error(chData?.message || "获取 chunk 失败");
+
+      setSelected(meta.doc);
+      setChunks(chData.chunks || []);
+      setView("doc");
+      setChunkFilter("");
+      setShowDocText(false);
+    } catch (e) {
+      setMessage(e.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteDoc(docId) {
+    if (!window.confirm("确定要删除整个文档吗？此操作不可撤销，将同时删除其所有 chunks。")) return;
+    setLoading(true);
+    setMessage("");
+    try {
+      const res = await fetch(`${API}/api/doc/${docId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!data?.ok) throw new Error(data?.message || "删除失败");
+      // 刷新列表
+      await fetchDocs();
+      if (selected?.id === docId) {
+        setSelected(null);
+        setView("list");
+      }
+    } catch (e) {
+      setMessage(e.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteChunk(chunkId) {
+    if (!window.confirm("确定要删除该 chunk 吗？此操作不可撤销。")) return;
+    setLoading(true);
+    setMessage("");
+    try {
+      const res = await fetch(`${API}/api/chunk/${chunkId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!data?.ok) throw new Error(data?.message || "删除 chunk 失败");
+      // 前端本地更新
+      setChunks((cs) => cs.filter((c) => c.id !== chunkId));
+      setDocs((ds) =>
+        ds.map((d) =>
+          d.id === selected.id
+            ? { ...d, chunk_count: Math.max(0, (d.chunk_count || 1) - 1) }
+            : d
+        )
+      );
+      setSelected((s) =>
+        s ? { ...s, chunk_count: Math.max(0, (s.chunk_count || 1) - 1) } : s
+      );
+    } catch (e) {
+      setMessage(e.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchDocs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const filteredDocs = useMemo(() => {
+    const q = docFilter.trim().toLowerCase();
+    return !q
+      ? docs
+      : docs.filter((d) => (d.filename || "").toLowerCase().includes(q));
+  }, [docFilter, docs]);
+
+  const filteredChunks = useMemo(() => {
+    const q = chunkFilter.trim().toLowerCase();
+    return !q
+      ? chunks
+      : chunks.filter((c) => (c.content || "").toLowerCase().includes(q));
+  }, [chunkFilter, chunks]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 12, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        className="w-full max-w-6xl bg-white rounded-2xl shadow-2xl border overflow-hidden flex flex-col"
+      >
+        {/* 顶部条 */}
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b bg-gradient-to-r from-slate-50 to-white">
+          <div className="flex items-center gap-3">
+            {view === "doc" && (
+              <button
+                onClick={() => setView("list")}
+                className="p-2 rounded-md hover:bg-slate-100"
+                title="返回"
+                aria-label="返回"
+              >
+                <ChevronLeft size={18} />
+              </button>
+            )}
+            <div className="flex items-center gap-2">
+              <BookOpen size={18} className="text-indigo-600" />
+              <span className="font-semibold">
+                {view === "list" ? "文档管理" : (selected?.filename || "文档详情")}
+              </span>
+              {view === "doc" && (
+                <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                  {selected?.chunk_count || 0} chunks
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {view === "doc" && selected && (
+              <button
+                onClick={() => deleteDoc(selected.id)}
+                className="px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700 text-sm"
+              >
+                删除文档
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-md hover:bg-slate-100"
+              aria-label="关闭"
+              title="关闭"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* 内容区 */}
+        <div className="p-4 sm:p-6 overflow-y-auto max-h-[85vh]">
+          {message && (
+            <div className="mb-3 text-sm text-red-600">{message}</div>
+          )}
+
+          {view === "list" && (
+            <>
+              {/* Summary + 搜索 */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <div className="text-sm text-slate-600">
+                  共 <b>{docs.length}</b> 个文档，<b>{totalChunks}</b> 个 chunks
+                </div>
+                <div className="relative">
+                  <Search size={16} className="absolute left-2 top-2.5 text-slate-400" />
+                  <input
+                    value={docFilter}
+                    onChange={(e) => setDocFilter(e.target.value)}
+                    placeholder="搜索文件名..."
+                    className="pl-8 pr-3 py-2 border rounded-md text-sm w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-inset"
+                  />
+                </div>
+              </div>
+
+              {/* 列表 */}
+              {loading ? (
+                <div className="py-6"><AnimatedLoader label="正在加载文档…" size={120} /></div>
+              ) : filteredDocs.length === 0 ? (
+                <div className="text-sm text-slate-500">暂无文档或未匹配到搜索结果。</div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredDocs.map((d) => (
+                    <div
+                      key={d.id}
+                      className="rounded-xl border bg-white overflow-hidden hover:shadow-md transition"
+                    >
+                      <div className="px-4 py-3 border-b bg-gradient-to-r from-indigo-50 to-white">
+                        <div className="font-medium truncate" title={d.filename}>{d.filename}</div>
+                        <div className="mt-1 text-xs text-slate-500">{formatDate(d.created_at)}</div>
+                      </div>
+                      <div className="p-4 flex items-center justify-between">
+                        <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
+                          {d.chunk_count} chunks
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => openDoc(d.id)}
+                            className="px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-sm"
+                          >
+                            查看
+                          </button>
+                          <button
+                            onClick={() => deleteDoc(d.id)}
+                            className="px-3 py-1.5 rounded-md border text-sm hover:bg-slate-50"
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {view === "doc" && selected && (
+            <>
+              {/* 文档信息 */}
+              <div className="mb-4">
+                <div className="text-sm text-slate-600">
+                  文档名：<b className="text-slate-800">{selected.filename}</b>
+                </div>
+                <div className="text-xs text-slate-500 mt-1">
+                  创建时间：{formatDate(selected.created_at)} · 共 {selected.chunk_count} 个 chunks
+                </div>
+
+                {/* 文本预览（可折叠） */}
+                <div className="mt-3">
+                  <button
+                    onClick={() => setShowDocText((v) => !v)}
+                    className="text-xs px-2 py-1 rounded-md border hover:bg-slate-50"
+                  >
+                    {showDocText ? "收起全文" : "展开查看全文"}
+                  </button>
+                  {showDocText && (
+                    <div className="mt-2 p-3 border rounded-md bg-slate-50 max-h-64 overflow-auto text-xs text-slate-700 whitespace-pre-wrap">
+                      {selected.text || "（无文本）"}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* chunk 搜索 */}
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div className="text-sm text-slate-600">
+                  chunks（{filteredChunks.length}/{chunks.length}）
+                </div>
+                <div className="relative">
+                  <Search size={16} className="absolute left-2 top-2.5 text-slate-400" />
+                  <input
+                    value={chunkFilter}
+                    onChange={(e) => setChunkFilter(e.target.value)}
+                    placeholder="在 chunks 内搜索..."
+                    className="pl-8 pr-3 py-2 border rounded-md text-sm w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-inset"
+                  />
+                </div>
+              </div>
+
+              {/* chunk 列表 */}
+              {loading ? (
+                <div className="py-6"><AnimatedLoader label="正在加载…" size={120} /></div>
+              ) : filteredChunks.length === 0 ? (
+                <div className="text-sm text-slate-500">暂无 chunk 或未匹配到搜索结果。</div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {filteredChunks.map((c, i) => (
+                    <div key={c.id} className="border rounded-lg p-3 bg-white hover:shadow-sm transition">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="text-xs text-slate-500">
+                          #{i + 1} · {c.created_at ? formatDate(c.created_at) : ""}
+                        </div>
+                        <button
+                          onClick={() => deleteChunk(c.id)}
+                          className="text-xs px-2 py-1 rounded-md border hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+                        >
+                          删除 chunk
+                        </button>
+                      </div>
+                      <div className="mt-2 text-sm text-slate-800 whitespace-pre-wrap leading-6">
+                        {c.content}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // 主函数
 function App() {
   const [question, setQuestion] = useState("");
@@ -128,6 +460,7 @@ function App() {
   const [listening, setListening] = useState(false);
   const [image, setImage] = useState(null);
   const [smilesError, setSmilesError] = useState("");
+  const [docMgrOpen, setDocMgrOpen] = useState(false);
 
   const [history, setHistory] = useState(() => {
     try {
@@ -311,22 +644,18 @@ function App() {
         const file = new File([blob], name, { type: blob.type || "image/png" });
 
         setImage(file);
-        // 为了能再次选择/粘贴同名文件，清空原 <input type="file"> 的值
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
-      // 不阻止默认行为，这样若同时有文本也会正常粘贴
       return;
     }
 
-    // 2) 兜底：有些来源复制的是含 <img> 的 HTML（无直接文件）
-    //    尝试解析出 <img src="..."> 的链接并抓取为 Blob（受 CORS 限制）
+    // 2) 兜底：从 HTML 里找 <img src="..."> 并抓取（可能受 CORS 限制）
     const html = cd.getData("text/html");
     if (html) {
       try {
         const doc = new DOMParser().parseFromString(html, "text/html");
         const img = doc.querySelector("img");
         const src = img?.src || img?.getAttribute("src");
-
         if (src && /^https?:/i.test(src)) {
           fetch(src)
             .then(res => res.blob())
@@ -336,17 +665,12 @@ function App() {
               const iso = new Date().toISOString().replace(/[:.]/g, "-");
               const name = `pasted-${iso}.${ext}`;
               const file = new File([blob], name, { type: blob.type });
-
               setImage(file);
               if (fileInputRef.current) fileInputRef.current.value = "";
             })
-            .catch(() => {
-              // 忽略：可能被 CORS 拒绝
-            });
+            .catch(() => {});
         }
-      } catch {
-        // 忽略解析异常
-      }
+      } catch {}
     }
   }
 
@@ -602,6 +926,15 @@ h2 { font-size: 16px; margin-top: 18px; }
           </div>
           <div className="flex gap-3 items-center">
             <button
+              onClick={() => setDocMgrOpen(true)}
+              type="button"
+              className="px-3 py-2 rounded-lg bg-indigo-600 text-white flex items-center gap-2 hover:bg-indigo-700"
+              aria-label="文档管理"
+              title="文档管理"
+            >
+              <BookOpen size={14} /> 文档管理
+            </button>
+            <button
               onClick={handleClearHistory}
               type="button"
               className="px-3 py-2 rounded-lg bg-green-600 text-white flex items-center gap-2 hover:bg-green-700"
@@ -766,7 +1099,7 @@ h2 { font-size: 16px; margin-top: 18px; }
                       alt="预览"
                       className="mt-2 max-h-40 rounded border object-contain"
                     />
-                    {/* 撤回上传按钮 —— 阻止冒泡并重置 input 值 */}
+                    {/* 撤回上传按钮 */}
                     <button
                       type="button"
                       onClick={(e) => {
@@ -818,7 +1151,7 @@ h2 { font-size: 16px; margin-top: 18px; }
                 <div className="text-xs text-red-600">{smilesError}</div>
               )}
 
-              {/* Reset / Copy / .md / Export —— 响应式美化排列 */}
+              {/* Reset / Copy / .md / Export */}
               <div className="mt-1">
                 <small className="text-sm text-slate-400">
                   历史记录保存在本地
@@ -1067,6 +1400,9 @@ h2 { font-size: 16px; margin-top: 18px; }
           <div>by 24 化院 张嵩仁 楼晟铭 周楚越</div>
         </footer>
       </div>
+
+      {/* 文档管理：全屏弹层 */}
+      {docMgrOpen && <DocumentManager onClose={() => setDocMgrOpen(false)} />}
     </div>
   );
 }

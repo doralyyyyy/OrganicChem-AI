@@ -56,6 +56,18 @@ export function listDocs() {
   return db.prepare("SELECT id, filename, created_at FROM docs ORDER BY created_at DESC").all();
 }
 
+// 新增：带 chunk 数统计
+export function listDocsWithStats() {
+  const sql = `
+    SELECT d.id, d.filename, d.created_at, COUNT(c.id) AS chunk_count
+    FROM docs d
+    LEFT JOIN chunks c ON c.doc_id = d.id
+    GROUP BY d.id
+    ORDER BY d.created_at DESC
+  `;
+  return db.prepare(sql).all();
+}
+
 export function getAllChunks() {
   return db
     .prepare(
@@ -64,10 +76,35 @@ export function getAllChunks() {
     .all();
 }
 
+// 细化：获取文档详情
+export function getDocById(doc_id) {
+  return db.prepare("SELECT id, filename, text, created_at FROM docs WHERE id = ?").get(doc_id);
+}
+
+// 统计某文档 chunks 数
+export function countChunksForDoc(doc_id) {
+  const row = db.prepare("SELECT COUNT(*) AS n FROM chunks WHERE doc_id = ?").get(doc_id);
+  return row?.n || 0;
+}
+
+// 修改：附带 created_at，embedding 保持返回，兼容之前用途
 export function getChunksByDoc(doc_id) {
   return db
-    .prepare("SELECT id, doc_id, content, embedding FROM chunks WHERE doc_id = ?")
+    .prepare("SELECT id, doc_id, content, embedding, created_at FROM chunks WHERE doc_id = ? ORDER BY created_at ASC, id ASC")
     .all(doc_id);
+}
+
+// 删除单个 chunk
+export function deleteChunkById(chunk_id) {
+  const info = db.prepare("DELETE FROM chunks WHERE id = ?").run(chunk_id);
+  return info.changes || 0;
+}
+
+// 删除整个文档（含其所有 chunks）
+export function deleteDocCascade(doc_id) {
+  const delChunks = db.prepare("DELETE FROM chunks WHERE doc_id = ?").run(doc_id).changes || 0;
+  const delDoc = db.prepare("DELETE FROM docs WHERE id = ?").run(doc_id).changes || 0;
+  return { delChunks, delDoc };
 }
 
 // 对话记忆方法
