@@ -20,7 +20,6 @@ import {
   insertChat,
   getChats,
   clearChats,
-  // 新增导入
   listDocsWithStats,
   getDocById,
   getChunksByDoc,
@@ -74,7 +73,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
+  limits: { fileSize: 50 * 1024 * 1024 }, // 25MB
 });
 
 // 余弦相似度函数
@@ -225,8 +224,6 @@ app.get("/api/docs", (req, res) => {
   }
 });
 
-// === 新增：文档库管理 REST ===
-
 // 文档列表 + chunk 数
 app.get("/api/docs/stats", (req, res) => {
   try {
@@ -319,66 +316,131 @@ app.post("/api/search", async (req, res) => {
 // 回答问题接口（智能 Agent + 自动 RAG）
 app.post("/api/solve", upload.single("image"), async (req, res) => {
   let imagePath = req.file ? req.file.path : null;
+  let results = [];
+
+  // 从答案里提取被引用的编号顺序（只统计 $^{[1][2]}$ 里的数字，支持如[1-3]的范围版本）
+  function extractCitationOrder(answer, maxIndex) {
+    if (!answer || !maxIndex) return [];
+    const order = [];
+    const seen = new Set();
+    const supRegex = /\$\^\{([^}]*)\}\$/g; // 捕获 $^{ ... }$
+    let m;
+    const add = (n) => {
+      const k = Number(n);
+      if (Number.isFinite(k) && k >= 1 && k <= maxIndex && !seen.has(k)) {
+        seen.add(k);
+        order.push(k);
+      }
+    };
+    while ((m = supRegex.exec(answer)) !== null) {
+      const inside = m[1] || "";
+      // 范围 [a-b]
+      const rangeRe = /\[(\d+)\s*[-–—]\s*(\d+)\]/g;
+      let r;
+      while ((r = rangeRe.exec(inside)) !== null) {
+        const a = parseInt(r[1], 10);
+        const b = parseInt(r[2], 10);
+        if (Number.isFinite(a) && Number.isFinite(b)) {
+          if (a <= b) {
+            for (let k = a; k <= b; k++) add(k);
+          } else {
+            for (let k = a; k >= b; k--) add(k);
+          }
+        }
+      }
+      // 单个 [n]
+      const singleRe = /\[(\d+)\]/g;
+      let s;
+      while ((s = singleRe.exec(inside)) !== null) {
+        add(parseInt(s[1], 10));
+      }
+    }
+    return order;
+  }
+
   try {
-    const question = req.body?.question;
+    // 基础入参与校验
+    const questionRaw = req.body?.question;
+    const question = typeof questionRaw === "string" ? questionRaw.trim() : "";
     const session_id = req.body?.session_id || "default";
 
     if (!question && !imagePath) {
-      return res.status(400).json({ error: true, message: "Missing question or image" });
+      return res
+        .status(400)
+        .json({ error: true, message: "Missing question or image" });
     }
 
-    // 如果有图片，先做识别，用于数据库记录（不用于发给模型）
+    // 如有图片，先做识别（用于数据库记录；不直接发给模型）
     let imageDescription = "";
     if (imagePath) {
       try {
         imageDescription = await recognizeImageContent(imagePath);
       } catch (e) {
-        console.warn("Image recognition failed, will continue without it:", e?.message || e);
+        console.warn(
+          "Image recognition failed, will continue without it:",
+          e?.message || e
+        );
       }
     }
 
-    // 检索和存储的完整问题 = 文字 + 图片描述
-    const fullQuestion = imageDescription ? `${question || ""}\n${imageDescription}` : question || imageDescription;
+    // 存储使用的完整问题（文本 + 识别描述）
+    const fullQuestion = imageDescription
+      ? `${question || ""}\n${imageDescription}`
+      : question || imageDescription;
 
-    const history = (getChats(session_id, 10) || []).map((h) => ({
-      role: h.role,
-      content: h.content,
-    }));
+    // 近期对话历史（用于保持上下文）
+    const history =
+      (getChats(session_id, 10) || []).map((h) => ({
+        role: h.role,
+        content: h.content,
+      })) || [];
 
     // 基础指令
     const baseMessages = [
       {
         role: "system",
         content: `你是大学有机化学助教，需要为学生提供详细、有条理的解答。请遵循以下要求：
-1. 回答必须清晰分段，包含必要的反应方程式、机理解释、实验条件、区域/立体选择性原因、常见错误与总结。
-2. 不要输出任何图片，仅使用文字或 LaTeX 格式书写化学式和方程式。
-3. 如果用户提供的图片中包含结构式，可以结合文字描述分析；若图片结构式过于复杂、罕见或明显为识别错误，则忽略图片结构式，仅基于文字进行回答。
-4. 若需要用到后面给你的检索到的相关知识，请在回答中严格使用 KaTeX 上标形式标注参考编号，例如：$^{[1][2]}$。不要写“根据检索到的相关知识”这种措辞，直接输出你的回答，并在相关内容处标注引用编号即可。`,
+        1. 回答必须清晰分段，包含必要的反应方程式、机理解释、实验条件、区域/立体选择性原因、常见错误与总结。
+        2. 不要输出任何图片，仅使用文字或 LaTeX 格式书写化学式和方程式。
+        3. 若需要用到后面给你的检索到的相关知识，请在回答中严格使用 KaTeX 上标形式标注参考编号，例如：$^{[1][2]}$。不要写“根据检索到的相关知识”这种措辞，直接输出你的回答，并在相关内容处标注引用编号即可。`,
       },
       ...history,
     ];
 
-    // 用户内容（可能包含图片）
-    const userContent = [{ type: "text", text: question || "" }];
+    // 复用的 data URL（用于两次调用都能带上图片）
+    let imageDataUrl = "";
     if (imagePath) {
-      const mime = (await import("mime-types")).default;
+      const mimeTypes = (await import("mime-types")).default;
       const buf = await fsp.readFile(imagePath);
       const b64 = buf.toString("base64");
-      const m = mime.lookup(path.extname(imagePath)) || "image/png";
-      userContent.push({ type: "image_url", image_url: { url: `data:${m};base64,${b64}` } });
+      const m = mimeTypes.lookup(imagePath) || "image/png";
+      imageDataUrl = `data:${m};base64,${b64}`;
     }
 
-    // 工具定义
+    // 用户内容（支持图文）
+    const userContent = [{ type: "text", text: question || "" }];
+    if (imageDataUrl) {
+      userContent.push({
+        type: "image_url",
+        image_url: { url: imageDataUrl },
+      });
+    }
+
+    // 工具定义（让模型决定是否调用 RAG）
     const tools = [
       {
         type: "function",
         function: {
           name: "search_rag",
-          description: "Retrieve relevant knowledge about a organic chemical entity or concept",
+          description:
+            "Retrieve relevant knowledge about an organic chemical entity or concept",
           parameters: {
             type: "object",
             properties: {
-              query: { type: "string", description: "Entity + property to search" },
+              query: {
+                type: "string",
+                description: "Entity + property to search",
+              },
             },
             required: ["query"],
           },
@@ -397,58 +459,100 @@ app.post("/api/solve", upload.single("image"), async (req, res) => {
 
     let answerText = "";
 
+    // 读取模型是否发起了工具调用
     const firstMsg = first?.choices?.[0]?.message || {};
     const toolCalls =
       firstMsg?.tool_calls ||
-      (firstMsg?.function_call ? [{ type: "function", function: firstMsg.function_call }] : []);
+      (firstMsg?.function_call
+        ? [{ type: "function", function: firstMsg.function_call }]
+        : []);
 
     const ragCall = (toolCalls || []).find(
       (tc) => tc?.type === "function" && tc?.function?.name === "search_rag"
     );
 
     if (ragCall) {
+      console.log("RAG Called");
+
+      // 尝试从工具调用中解析 query
       let ragQuery = "";
       try {
         const args = ragCall.function?.arguments;
-        ragQuery = typeof args === "string" ? JSON.parse(args)?.query : args?.query;
+        const parsed = typeof args === "string" ? JSON.parse(args) : args;
+        if (parsed && typeof parsed.query === "string") {
+          ragQuery = parsed.query;
+        }
       } catch {
-        // 忽略解析错误，回退
+        // 忽略解析错误，后续用回退
       }
-      ragQuery = ragQuery || (question || "");
 
-      const results = await search_rag(ragQuery, 5);
-      const contextText = results.map((r, i) => `[${i + 1}] ${r.snippet}`).join("\n\n");
+      // 回退策略
+      const fallbackQuery = question || imageDescription || "";
+      ragQuery = ragQuery || fallbackQuery;
 
-      // 第二次调用：合成最终答案（不再传图片）
+      // 执行检索
+      results = ragQuery ? await search_rag(ragQuery, 5) : [];
+
+      const contextText = (results || [])
+        .map((r, i) => `[${i + 1}] ${r?.snippet || ""}`)
+        .join("\n\n");
+
+      // 第二次调用也携带图片
+      const secondUserPrompt =
+        `请结合上图（若有）与以下知识片段作答：\n${contextText}\n\n` +
+        `问题：${question || ""}\n` +
+        `请在需要引用的句子处使用 KaTeX 上标编号格式，如 $^{[1][2]}$，编号与上文方括号内的序号一致。`;
+
+      const secondUserContent = [{ type: "text", text: secondUserPrompt }];
+      if (imageDataUrl) {
+        secondUserContent.push({
+          type: "image_url",
+          image_url: { url: imageDataUrl },
+        });
+      }
+
       const second = await postChatCompletion({
         model: "gpt-4o",
         temperature: 0.2,
-        messages: [
-          ...baseMessages,
-          {
-            role: "user",
-            content: `根据以下知识回答问题：\n${contextText}\n\n问题：${question || ""}`,
-          },
-        ],
+        messages: [...baseMessages, { role: "user", content: secondUserContent }],
       });
 
       answerText = second?.choices?.[0]?.message?.content || "";
     } else {
-      // 未调用 RAG，就直接用第一次结果
+      console.log("RAG Uncalled");
+      // 未调用 RAG：直接采用第一次结果
       answerText = first?.choices?.[0]?.message?.content || "";
+      results = []; // 显式置空
     }
 
     // 存储聊天记录（含识别描述）
     insertChat(session_id, "user", fullQuestion || "");
     insertChat(session_id, "assistant", answerText || "");
 
-    // 构建 sources（基于最终 fullQuestion 再检索一次，贴近用户实际问题）
-    const scored = await search_rag(fullQuestion || question || "", 5);
-    const sources = scored.map((s, i) => {
-      const nameWithoutExt = (s.source || `文档${i + 1}`).replace(/\.[^/.]+$/, "");
-      const snippetWithTitle = `[${i + 1}]《${nameWithoutExt}》：${(s.snippet || "").slice(0, 80)}……`;
-      return { snippetWithTitle, score: s.score };
-    });
+    // 仅返回“答案中实际引用过”的 sources（按首次出现顺序），并保留原编号
+    let sources = [];
+    if (results && results.length && answerText) {
+      const usedIdxOrder = extractCitationOrder(answerText, results.length);
+      if (usedIdxOrder.length) {
+        sources = usedIdxOrder
+          .map((idx) => {
+            const s = results[idx - 1];
+            if (!s) return null;
+            const nameWithoutExt = String(s?.source || `文档${idx}`).replace(
+              /\.[^/.]+$/,
+              ""
+            );
+            const snippetWithTitle = `[${idx}]《${nameWithoutExt}》：${String(
+              s?.snippet || ""
+            ).slice(0, 80)}……`;
+            return { snippetWithTitle, score: s?.score };
+          })
+          .filter(Boolean);
+      } else {
+        // 若未检测到任何引用，则不返回 sources（保持空数组）
+        sources = [];
+      }
+    }
 
     return res.json({
       id: Date.now(),
