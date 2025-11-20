@@ -61,7 +61,7 @@ function escapeHtml(str = "") {
     .replace(/'/g, "&#039;");
 }
 
-// —— 高级感化学主题加载动画 ——
+// 化学主题加载动画
 // 支持优先使用 /anim/ai-loader.gif（若存在），否则回退到内联 SVG 动画
 function AnimatedLoader({ label = "系统正在检索答案…", size = 160, imgSrc = "/anim/ai-loader.gif" }) {
   const [useImg, setUseImg] = React.useState(true);
@@ -122,9 +122,7 @@ function AnimatedLoader({ label = "系统正在检索答案…", size = 160, img
   );
 }
 
-/** =========================
- * 文档管理器（全屏弹层页面）
- * ========================= */
+// 文档管理器
 function DocumentManager({ onClose }) {
   const API = import.meta.env.VITE_API_BASE;
   const [view, setView] = useState("list"); // 'list' | 'doc'
