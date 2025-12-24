@@ -474,6 +474,8 @@ function App() {
   const answerRef = useRef(null);
 
   const [dragActive, setDragActive] = useState(false);
+  const [inputDragActive, setInputDragActive] = useState(false); // 输入框区域的拖拽状态
+  const [uploadAreaDragActive, setUploadAreaDragActive] = useState(false); // 上传按钮区域的拖拽状态
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
   const allowedDocTypes = useMemo(
@@ -587,6 +589,7 @@ function App() {
   }
   const handleDrop = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     setDragActive(false);
     const file = e.dataTransfer.files?.[0];
     if (file) {
@@ -598,6 +601,27 @@ function App() {
       handleUpload(fakeEvent);
     }
   };
+
+  // 处理教材/题库上传区域的拖拽
+  function handleDocUploadDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes('Files')) {
+      setDragActive(true);
+    }
+  }
+
+  function handleDocUploadDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    // 只有当真正离开容器时才取消拖拽状态
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setDragActive(false);
+    }
+  }
 
   // speech
   function handleVoiceInput() {
@@ -651,6 +675,72 @@ function App() {
         alert("不支持的文件类型，请上传图片、PDF、Word 或 TXT 文件");
         return;
       }
+    }
+  }
+
+  // 处理输入框区域的拖拽
+  function handleInputDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes('Files')) {
+      setInputDragActive(true);
+    }
+  }
+
+  function handleInputDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    // 只有当真正离开容器时才取消拖拽状态
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setInputDragActive(false);
+    }
+  }
+
+  function handleInputDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setInputDragActive(false);
+    
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      handleFileSelect(file);
+    }
+  }
+
+  // 处理上传按钮区域的拖拽
+  function handleUploadAreaDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes('Files')) {
+      setUploadAreaDragActive(true);
+    }
+  }
+
+  function handleUploadAreaDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    // 只有当真正离开容器时才取消拖拽状态
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setUploadAreaDragActive(false);
+    }
+  }
+
+  function handleUploadAreaDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setUploadAreaDragActive(false);
+    
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      handleFileSelect(file);
     }
   }
 
@@ -974,15 +1064,24 @@ h2 { font-size: 16px; margin-top: 18px; }
               {/* 标题居中 */}
               <label className="text-lg font-semibold text-center">输入你的问题</label>
 
-              <div className="relative">
+              <div 
+                className="relative"
+                onDragOver={handleInputDragOver}
+                onDragLeave={handleInputDragLeave}
+                onDrop={handleInputDrop}
+              >
                 <textarea
                   rows={6}
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   onPaste={handlePasteToTextarea}
-                  className="w-full p-3 border rounded-md text-sm resize-none pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset focus:border-blue-500"
-                  placeholder="例如：解释 SN1 反应的机理..."
+                  className={`w-full p-3 border rounded-md text-sm resize-none pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset focus:border-blue-500 ${
+                    inputDragActive ? "border-blue-500 ring-2 ring-blue-500 ring-inset" : ""
+                  }`}
+                  placeholder={inputDragActive ? "松开以上传文件" : "例如：解释 SN1 反应的机理..."}
                   aria-label="问题输入"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => e.preventDefault()}
                 />
                 <button
                   type="button"
@@ -1098,11 +1197,20 @@ h2 { font-size: 16px; margin-top: 18px; }
               </div>
 
               {/* 上传图片或文件 */}
-              <label className="flex flex-col items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-green-500 hover:bg-green-50 transition">
+              <label 
+                className={`flex flex-col items-center justify-center gap-2 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition ${
+                  uploadAreaDragActive 
+                    ? "border-green-500 bg-green-100" 
+                    : "border-slate-300 hover:border-green-500 hover:bg-green-50"
+                }`}
+                onDragOver={handleUploadAreaDragOver}
+                onDragLeave={handleUploadAreaDragLeave}
+                onDrop={handleUploadAreaDrop}
+              >
                 <div className="flex items-center gap-2">
                   <Paperclip size={18} className="text-green-600" />
                   <span className="text-slate-600">
-                    {image ? `已选择图片: ${image.name}` : file ? `已选择文件: ${file.name}` : "上传图片或文件（可选）"}
+                    {image ? `已选择图片: ${image.name}` : file ? `已选择文件: ${file.name}` : uploadAreaDragActive ? "松开以上传文件" : "上传图片或文件（可拖拽）"}
                   </span>
                 </div>
                 <input
@@ -1358,15 +1466,12 @@ h2 { font-size: 16px; margin-top: 18px; }
 
         {/* 教材/题库上传区域*/}
         <section
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragActive(true);
-          }}
-          onDragLeave={() => setDragActive(false)}
+          onDragOver={handleDocUploadDragOver}
+          onDragLeave={handleDocUploadDragLeave}
           onDrop={handleDrop}
           className={`bg-white p-3 rounded-2xl shadow-md flex flex-col items-center justify-center border-2 border-dashed transition-colors cursor-pointer ${
             dragActive
-              ? "border-green-400 bg-green-50"
+              ? "border-green-500 bg-green-100"
               : "border-slate-300 hover:border-green-400 hover:bg-green-50"
           }`}
           aria-label="上传教材或题库"
