@@ -255,10 +255,10 @@ async function search_reaxys(query) {
 
 // 联网搜索 API 调用（使用 Tavily API 作为示例）
 async function search_web(query) {
-  const apiKey = process.env.TAVILY_API_KEY || process.env.WEB_SEARCH_API_KEY;
+  const apiKey = process.env.TAVILY_API_KEY;
   
   if (!apiKey) {
-    console.warn("[WARN] TAVILY_API_KEY or WEB_SEARCH_API_KEY is not set. Web search will be skipped.");
+    console.warn("[WARN] TAVILY_API_KEY is not set. Web search will be skipped.");
     return null;
   }
 
@@ -267,7 +267,6 @@ async function search_web(query) {
     const response = await axios.post(
       "https://api.tavily.com/search",
       {
-        api_key: apiKey,
         query: query,
         search_depth: "basic",
         max_results: 5,
@@ -275,9 +274,7 @@ async function search_web(query) {
         include_raw_content: false,
       },
       {
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${apiKey}`},
         timeout: 30_000,
       }
     );
@@ -888,20 +885,71 @@ ${contextText}
     insertChat(session_id, "user", fullQuestion || "");
     insertChat(session_id, "assistant", answerText || "");
 
-    // 仅返回“答案中实际引用过”的 sources（按首次出现顺序），并保留原编号
+    // 仅返回"答案中实际引用过"的 sources（按首次出现顺序），并重新编号为连续编号
     let sources = [];
+    let finalAnswerText = answerText;
     if (results && results.length && answerText) {
       const usedIdxOrder = extractCitationOrder(answerText, results.length);
       if (usedIdxOrder.length) {
+        // 创建原始编号到新连续编号的映射
+        const idxMap = new Map();
+        usedIdxOrder.forEach((originalIdx, newIdx) => {
+          idxMap.set(originalIdx, newIdx + 1);
+        });
+
+        // 替换答案文本中的所有引用编号为新的连续编号
+        finalAnswerText = answerText.replace(/\$\^\{([^}]*)\}\$/g, (match, inside) => {
+          // 先处理范围 [a-b]，需要将整个范围转换为新的连续编号
+          let replaced = inside.replace(/\[(\d+)\s*[-–—]\s*(\d+)\]/g, (rangeMatch, a, b) => {
+            const start = parseInt(a, 10);
+            const end = parseInt(b, 10);
+            const newStart = idxMap.get(start);
+            const newEnd = idxMap.get(end);
+            
+            // 如果范围的两个端点都在映射中，转换为新的范围
+            if (newStart && newEnd) {
+              // 如果新编号连续，保持范围格式；否则转换为多个单独编号
+              if (Math.abs(newEnd - newStart) === Math.abs(end - start)) {
+                return `[${newStart}-${newEnd}]`;
+              } else {
+                // 编号不连续，转换为多个单独编号
+                const newNums = [];
+                const step = start <= end ? 1 : -1;
+                for (let i = start; step > 0 ? i <= end : i >= end; i += step) {
+                  const newNum = idxMap.get(i);
+                  if (newNum) newNums.push(newNum);
+                }
+                return newNums.length > 0 ? `[${newNums.join("][")}]` : rangeMatch;
+              }
+            } else if (newStart) {
+              return `[${newStart}]`;
+            } else if (newEnd) {
+              return `[${newEnd}]`;
+            }
+            return rangeMatch;
+          });
+          
+          // 然后处理单个 [n]（注意：这不会影响已经处理过的范围）
+          replaced = replaced.replace(/\[(\d+)\]/g, (singleMatch, n) => {
+            const originalNum = parseInt(n, 10);
+            const newNum = idxMap.get(originalNum);
+            return newNum ? `[${newNum}]` : singleMatch;
+          });
+          
+          return `$^{${replaced}}$`;
+        });
+
+        // 使用新的连续编号创建 sources
         sources = usedIdxOrder
-          .map((idx) => {
-            const s = results[idx - 1];
+          .map((originalIdx, newIdx) => {
+            const s = results[originalIdx - 1];
             if (!s) return null;
-            const nameWithoutExt = String(s?.source || `文档${idx}`).replace(
+            const nameWithoutExt = String(s?.source || `文档${originalIdx}`).replace(
               /\.[^/.]+$/,
               ""
             );
-            const snippetWithTitle = `[${idx}]《${nameWithoutExt}》：${String(
+            const newNum = newIdx + 1; // 新的连续编号从1开始
+            const snippetWithTitle = `[${newNum}]《${nameWithoutExt}》：${String(
               s?.snippet || ""
             ).slice(0, 80)}……`;
             return { snippetWithTitle, score: s?.score };
@@ -916,7 +964,7 @@ ${contextText}
     return res.json({
       id: Date.now(),
       query: question || "",
-      text: answerText || "",
+      text: finalAnswerText || "",
       sources,
     });
   } catch (err) {
