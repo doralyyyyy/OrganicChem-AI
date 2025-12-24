@@ -253,7 +253,7 @@ async function search_reaxys(query) {
   }
 }
 
-// 联网搜索 API 调用（使用 Tavily API 作为示例）
+// 联网搜索 API 调用
 async function search_web(query) {
   const apiKey = process.env.TAVILY_API_KEY;
   
@@ -316,7 +316,7 @@ async function search_web(query) {
   } catch (err) {
     console.error("Web search API error:", err?.response?.data || err?.message || err);
     
-    // 如果 Tavily 失败，可以尝试其他搜索 API（如 Serper）
+    // 如果 Tavily 失败，尝试其他搜索 API（Serper）
     if (process.env.SERPER_API_KEY) {
       try {
         const serperResponse = await axios.post(
@@ -643,7 +643,7 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
     }
 
     // 工具定义（让模型决定是否调用 RAG）
-    // 注意：Reaxys 和联网搜索不在工具列表中，它们会在 RAG 无结果时自动调用
+    // Reaxys 和联网搜索不在工具列表中，它们会在 RAG 无结果时自动调用
     const tools = [
       {
         type: "function",
@@ -712,14 +712,19 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
         .map((r, i) => `[${i + 1}] ${r?.snippet || ""}`)
         .join("\n\n");
 
-      const relevancePrompt = `请判断以下搜索结果是否与用户问题相关。
+      const relevancePrompt = `请严格判断以下搜索结果是否与用户问题相关。
 
 用户问题：${query}
 
 搜索结果（来自${sourceName}）：
 ${contextText}
 
-请只回答"相关"或"不相关"，不要输出其他内容。如果搜索结果能够帮助回答用户问题，回答"相关"；如果搜索结果与问题无关或无法提供有用信息，回答"不相关"。`;
+判断标准：
+1. 搜索结果必须直接回答用户问题中的关键实体（如化合物名称、概念等）
+2. 如果搜索结果提到的是不同的实体（即使属性相似），应判断为"不相关"
+3. 如果搜索结果无法明确回答用户问题，应判断为"不相关"
+
+请只回答"相关"或"不相关"，不要输出其他内容。`;
 
       try {
         const relevanceCheck = await postChatCompletion({
@@ -728,7 +733,7 @@ ${contextText}
           messages: [
             {
               role: "system",
-              content: "你是一个相关性判断助手，只需要回答'相关'或'不相关'。",
+              content: "你是一个严格的相关性判断助手，只需要回答'相关'或'不相关'。如果搜索结果中的实体与问题中的实体不一致，必须回答'不相关'。",
             },
             {
               role: "user",
@@ -744,8 +749,8 @@ ${contextText}
         return isRelevant;
       } catch (err) {
         console.error(`Relevance check error for ${sourceName}:`, err?.message || err);
-        // 如果判断失败，默认认为相关（保守策略）
-        return true;
+        // 如果判断失败，默认认为不相关（更保守的策略）
+        return false;
       }
     }
 
@@ -899,7 +904,7 @@ ${contextText}
 
         // 替换答案文本中的所有引用编号为新的连续编号
         finalAnswerText = answerText.replace(/\$\^\{([^}]*)\}\$/g, (match, inside) => {
-          // 先处理范围 [a-b]，需要将整个范围转换为新的连续编号
+          // 先处理范围 [a-b]
           let replaced = inside.replace(/\[(\d+)\s*[-–—]\s*(\d+)\]/g, (rangeMatch, a, b) => {
             const start = parseInt(a, 10);
             const end = parseInt(b, 10);
@@ -929,8 +934,9 @@ ${contextText}
             return rangeMatch;
           });
           
-          // 然后处理单个 [n]（注意：这不会影响已经处理过的范围）
-          replaced = replaced.replace(/\[(\d+)\]/g, (singleMatch, n) => {
+          // 然后处理单个 [n]，但需要避免匹配已经处理过的范围中的编号
+          // 使用负向前瞻和后顾来避免匹配已经在范围中的编号
+          replaced = replaced.replace(/(?<!\[)\[(\d+)\](?![-–—\d])/g, (singleMatch, n) => {
             const originalNum = parseInt(n, 10);
             const newNum = idxMap.get(originalNum);
             return newNum ? `[${newNum}]` : singleMatch;
