@@ -1,4 +1,3 @@
-
 // ingest-utils.js
 import fs from "fs";
 import path from "path";
@@ -40,7 +39,7 @@ function chunkText(text, chunkSize = 1000, overlap = 200) {
   return chunks;
 }
 
-async function extractTextFromFile(filePath) {
+export async function extractTextFromFile(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   if (ext === ".pdf") {
     const data = fs.readFileSync(filePath);

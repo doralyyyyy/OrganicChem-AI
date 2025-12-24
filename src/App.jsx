@@ -457,6 +457,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const [image, setImage] = useState(null);
+  const [file, setFile] = useState(null); // 用于存储文件（非图片）
   const [smilesError, setSmilesError] = useState("");
   const [docMgrOpen, setDocMgrOpen] = useState(false);
 
@@ -543,6 +544,11 @@ function App() {
     };
   }, [imagePreviewURL]);
 
+  // 判断文件是否为图片
+  const isImageFile = (file) => {
+    return file && file.type && file.type.startsWith("image/");
+  };
+
   // upload docs
   async function handleUpload(e) {
     const file = e.target.files?.[0];
@@ -625,6 +631,29 @@ function App() {
     };
   }
 
+  // 处理文件选择（图片或文件）
+  function handleFileSelect(selectedFile) {
+    if (!selectedFile) {
+      setImage(null);
+      setFile(null);
+      return;
+    }
+    
+    if (isImageFile(selectedFile)) {
+      setImage(selectedFile);
+      setFile(null);
+    } else {
+      // 检查是否为允许的文档类型
+      if (allowedDocTypes.includes(selectedFile.type)) {
+        setFile(selectedFile);
+        setImage(null);
+      } else {
+        alert("不支持的文件类型，请上传图片、PDF、Word 或 TXT 文件");
+        return;
+      }
+    }
+  }
+
   // 将粘贴事件里的图片转换为 File 并放入现有 image 状态
   function handlePasteToTextarea(e) {
     const cd = e.clipboardData;
@@ -641,7 +670,7 @@ function App() {
         const name = (blob.name && blob.name !== "image") ? blob.name : `pasted-${iso}.${ext}`;
         const file = new File([blob], name, { type: blob.type || "image/png" });
 
-        setImage(file);
+        handleFileSelect(file);
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
       return;
@@ -663,7 +692,7 @@ function App() {
               const iso = new Date().toISOString().replace(/[:.]/g, "-");
               const name = `pasted-${iso}.${ext}`;
               const file = new File([blob], name, { type: blob.type });
-              setImage(file);
+              handleFileSelect(file);
               if (fileInputRef.current) fileInputRef.current.value = "";
             })
             .catch(() => {});
@@ -675,7 +704,7 @@ function App() {
   // submit / cancel
   async function handleSubmit(e) {
     e?.preventDefault();
-    if (!question.trim() && !image) return;
+    if (!question.trim() && !image && !file) return;
 
     if (requestControllerRef.current) {
       requestControllerRef.current.abort();
@@ -691,7 +720,11 @@ function App() {
       const formData = new FormData();
       formData.append("question", question);
       formData.append("session_id", session_id);
-      if (image) formData.append("image", image);
+      if (image) {
+        formData.append("image", image);
+      } else if (file) {
+        formData.append("file", file);
+      }
 
       const resp = await fetch(`${import.meta.env.VITE_API_BASE}/api/solve`, {
         method: "POST",
@@ -745,6 +778,7 @@ function App() {
     setSmiles("");
     setSmilesError("");
     setImage(null);
+    setFile(null);
     // 同时清空文件 input 的值，避免再次选择同一个文件没有触发 change
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -1063,19 +1097,19 @@ h2 { font-size: 16px; margin-top: 18px; }
                 )}
               </div>
 
-              {/* 上传图片（题图/结构式） */}
+              {/* 上传图片或文件 */}
               <label className="flex flex-col items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-green-500 hover:bg-green-50 transition">
                 <div className="flex items-center gap-2">
                   <Paperclip size={18} className="text-green-600" />
                   <span className="text-slate-600">
-                    {image ? `已选择: ${image.name}` : "上传图片（可选）"}
+                    {image ? `已选择图片: ${image.name}` : file ? `已选择文件: ${file.name}` : "上传图片或文件（可选）"}
                   </span>
                 </div>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
-                  onChange={(e) => setImage(e.target.files?.[0] || null)}
+                  accept="image/*,.pdf,.doc,.docx,.txt"
+                  onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
                   className="hidden"
                 />
                 {imagePreviewURL && (
@@ -1091,12 +1125,34 @@ h2 { font-size: 16px; margin-top: 18px; }
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
-                        setImage(null);
+                        handleFileSelect(null);
                         if (fileInputRef.current) fileInputRef.current.value = "";
                       }}
                       className="absolute top-2 right-2 p-1 rounded-full bg-white border shadow hover:bg-slate-100"
-                      aria-label="删除已上传图片"
-                      title="删除已上传图片"
+                      aria-label="删除已上传文件"
+                      title="删除已上传文件"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+                {file && !image && (
+                  <div className="w-full flex justify-center relative mt-2">
+                    <div className="px-3 py-2 bg-slate-50 rounded border text-sm text-slate-700">
+                      {file.name}
+                    </div>
+                    {/* 撤回上传按钮 */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleFileSelect(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      className="absolute top-2 right-2 p-1 rounded-full bg-white border shadow hover:bg-slate-100"
+                      aria-label="删除已上传文件"
+                      title="删除已上传文件"
                     >
                       <X size={14} />
                     </button>

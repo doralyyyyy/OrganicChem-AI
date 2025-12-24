@@ -1,4 +1,3 @@
-
 // db.js
 import Database from "better-sqlite3";
 
@@ -57,7 +56,7 @@ export function listDocs() {
   return db.prepare("SELECT id, filename, created_at FROM docs ORDER BY created_at DESC").all();
 }
 
-// 新增：带 chunk 数统计
+// 带 chunk 数统计
 export function listDocsWithStats() {
   const sql = `
     SELECT d.id, d.filename, d.created_at, COUNT(c.id) AS chunk_count
@@ -77,7 +76,7 @@ export function getAllChunks() {
     .all();
 }
 
-// 细化：获取文档详情
+// 获取文档详情
 export function getDocById(doc_id) {
   return db.prepare("SELECT id, filename, text, created_at FROM docs WHERE id = ?").get(doc_id);
 }
@@ -88,7 +87,7 @@ export function countChunksForDoc(doc_id) {
   return row?.n || 0;
 }
 
-// 修改：附带 created_at，embedding 保持返回，兼容之前用途
+// 附带 created_at，embedding 保持返回，兼容之前用途
 export function getChunksByDoc(doc_id) {
   return db
     .prepare("SELECT id, doc_id, content, embedding, created_at FROM chunks WHERE doc_id = ? ORDER BY created_at ASC, id ASC")

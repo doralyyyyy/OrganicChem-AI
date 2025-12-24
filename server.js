@@ -1,4 +1,3 @@
-
 // server.js
 import path from "path";
 import fs from "fs";
@@ -13,7 +12,8 @@ import nodemailer from "nodemailer";
 
 import {
   ingestFileToDB,
-  getEmbedding
+  getEmbedding,
+  extractTextFromFile
 } from "./ingest-utils.js";
 import {
   listDocs,
@@ -158,6 +158,23 @@ async function recognizeImageContent(imagePath) {
   const prompt =
     "请对这张图的内容做尽可能详细的描述，保证你的描述能涵盖图片中的所有信息。仅输出该描述，不要输出其他多余内容。";
   return chatVision(imagePath, prompt, "gpt-4o");
+}
+
+// 识别文件内容（提取文本并生成描述）
+async function recognizeFileContent(filePath, filename) {
+  try {
+    const text = await extractTextFromFile(filePath);
+    if (!text || !text.trim()) {
+      return `文件 ${filename} 内容为空或无法提取文本。`;
+    }
+    // 生成文件内容描述（类似图片识别的处理）
+    // 可以限制长度，避免太长
+    const preview = text.slice(0, 5000); // 取前5000字符作为预览
+    return `文件 ${filename} 的内容如下：\n${preview}${text.length > 5000 ? "\n（文件内容较长，已截取前5000字符）" : ""}`;
+  } catch (err) {
+    console.error("File content extraction failed:", err);
+    return `文件 ${filename} 内容提取失败：${err.message || String(err)}`;
+  }
 }
 
 // 简单RAG搜索
@@ -315,8 +332,10 @@ app.post("/api/search", async (req, res) => {
 });
 
 // 回答问题接口（智能 Agent + 自动 RAG）
-app.post("/api/solve", upload.single("image"), async (req, res) => {
-  let imagePath = req.file ? req.file.path : null;
+app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "file", maxCount: 1 }]), async (req, res) => {
+  let imagePath = req.files?.image?.[0]?.path || null;
+  let filePath = req.files?.file?.[0]?.path || null;
+  let fileInfo = req.files?.file?.[0] || null;
   let results = [];
 
   // 从答案里提取被引用的编号顺序（只统计 $^{[1][2]}$ 里的数字，支持如[1-3]的范围版本）
@@ -365,10 +384,10 @@ app.post("/api/solve", upload.single("image"), async (req, res) => {
     const question = typeof questionRaw === "string" ? questionRaw.trim() : "";
     const session_id = req.body?.session_id || "default";
 
-    if (!question && !imagePath) {
+    if (!question && !imagePath && !filePath) {
       return res
         .status(400)
-        .json({ error: true, message: "Missing question or image" });
+        .json({ error: true, message: "Missing question, image or file" });
     }
 
     // 如有图片，先做识别（用于数据库记录；不直接发给模型）
@@ -384,10 +403,33 @@ app.post("/api/solve", upload.single("image"), async (req, res) => {
       }
     }
 
+    // 如有文件，先提取文本内容（用于数据库记录）
+    let fileDescription = "";
+    if (filePath && fileInfo) {
+      try {
+        let originalname = fileInfo.originalname;
+        try {
+          originalname = Buffer.from(originalname, "latin1").toString("utf8");
+        } catch (e) {
+          console.warn("Filename encoding fix failed:", e);
+        }
+        fileDescription = await recognizeFileContent(filePath, originalname);
+      } catch (e) {
+        console.warn(
+          "File content extraction failed, will continue without it:",
+          e?.message || e
+        );
+      }
+    }
+
     // 存储使用的完整问题（文本 + 识别描述）
-    const fullQuestion = imageDescription
-      ? `${question || ""}\n${imageDescription}`
-      : question || imageDescription;
+    let fullQuestion = question || "";
+    if (imageDescription) {
+      fullQuestion = fullQuestion ? `${fullQuestion}\n${imageDescription}` : imageDescription;
+    }
+    if (fileDescription) {
+      fullQuestion = fullQuestion ? `${fullQuestion}\n${fileDescription}` : fileDescription;
+    }
 
     // 近期对话历史（用于保持上下文）
     const history =
@@ -418,8 +460,31 @@ app.post("/api/solve", upload.single("image"), async (req, res) => {
       imageDataUrl = `data:${m};base64,${b64}`;
     }
 
-    // 用户内容（支持图文）
-    const userContent = [{ type: "text", text: question || "" }];
+    // 提取文件完整内容（用于API调用）
+    let fileContent = "";
+    if (filePath) {
+      try {
+        fileContent = await extractTextFromFile(filePath);
+      } catch (e) {
+        console.warn("File content extraction for API failed:", e?.message || e);
+      }
+    }
+
+    // 用户内容（支持图文和文件）
+    const userContent = [];
+    
+    // 构建文本部分
+    let textPart = question || "";
+    if (fileContent) {
+      textPart = textPart 
+        ? `${textPart}\n\n文件内容：\n${fileContent}` 
+        : `文件内容：\n${fileContent}`;
+    }
+    if (textPart) {
+      userContent.push({ type: "text", text: textPart });
+    }
+    
+    // 如果有图片，添加图片
     if (imageDataUrl) {
       userContent.push({
         type: "image_url",
@@ -488,7 +553,7 @@ app.post("/api/solve", upload.single("image"), async (req, res) => {
       }
 
       // 回退策略
-      const fallbackQuery = question || imageDescription || "";
+      const fallbackQuery = question || imageDescription || fileDescription || "";
       ragQuery = ragQuery || fallbackQuery;
 
       // 执行检索
@@ -498,13 +563,17 @@ app.post("/api/solve", upload.single("image"), async (req, res) => {
         .map((r, i) => `[${i + 1}] ${r?.snippet || ""}`)
         .join("\n\n");
 
-      // 第二次调用也携带图片
-      const secondUserPrompt =
-        `请结合上图（若有）与以下知识片段作答：\n${contextText}\n\n` +
-        `问题：${question || ""}\n` +
-        `请在需要引用的句子处使用 KaTeX 上标编号格式，如 $^{[1][2]}$，编号与上文方括号内的序号一致。`;
+      // 第二次调用也携带图片和文件
+      let secondPromptText = `请结合上图（若有）和文件内容（若有）与以下知识片段作答：\n${contextText}\n\n`;
+      if (question) {
+        secondPromptText += `问题：${question}\n`;
+      }
+      if (fileContent) {
+        secondPromptText += `\n文件内容：\n${fileContent}\n`;
+      }
+      secondPromptText += `请在需要引用的句子处使用 KaTeX 上标编号格式，如 $^{[1][2]}$，编号与上文方括号内的序号一致。`;
 
-      const secondUserContent = [{ type: "text", text: secondUserPrompt }];
+      const secondUserContent = [{ type: "text", text: secondPromptText }];
       if (imageDataUrl) {
         secondUserContent.push({
           type: "image_url",
@@ -569,9 +638,15 @@ app.post("/api/solve", upload.single("image"), async (req, res) => {
       sources: [],
     });
   } finally {
+    // 清理临时文件
     if (imagePath) {
       try {
         await fsp.unlink(imagePath);
+      } catch {}
+    }
+    if (filePath) {
+      try {
+        await fsp.unlink(filePath);
       } catch {}
     }
   }
