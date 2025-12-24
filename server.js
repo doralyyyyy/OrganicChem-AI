@@ -201,6 +201,159 @@ async function search_rag(query, topK = 5) {
   }));
 }
 
+// Reaxys API 调用
+async function search_reaxys(query) {
+  const apiKey = process.env.REAXYS_API_KEY;
+  const apiUrl = process.env.REAXYS_API_URL || "https://api.reaxys.com/v2/api";
+  
+  if (!apiKey) {
+    console.warn("[WARN] REAXYS_API_KEY is not set. Reaxys search will be skipped.");
+    return null;
+  }
+
+  try {
+    // 根据 Reaxys API 文档调整请求格式
+    // 这里是一个通用示例，需要根据实际 API 文档调整
+    const response = await axios.post(
+      apiUrl,
+      {
+        query: query,
+        // 可以根据需要添加其他参数
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+          // 或者使用 API Key 作为 header，根据实际文档调整
+          // "X-API-Key": apiKey,
+        },
+        timeout: 30_000,
+      }
+    );
+
+    const data = response.data;
+    
+    // 解析 Reaxys 返回结果，转换为与 RAG 类似的格式
+    // 需要根据实际 API 返回格式调整
+    if (data && (data.results || data.data || data.hits)) {
+      const results = data.results || data.data || data.hits || [];
+      if (Array.isArray(results) && results.length > 0) {
+        return results.slice(0, 5).map((item, idx) => ({
+          snippet: (item.text || item.content || item.abstract || JSON.stringify(item)).slice(0, 1200),
+          source: item.source || item.title || `Reaxys结果${idx + 1}`,
+          score: item.score || item.relevance || 1.0,
+        }));
+      }
+    }
+    
+    return null;
+  } catch (err) {
+    console.error("Reaxys API error:", err?.response?.data || err?.message || err);
+    return null;
+  }
+}
+
+// 联网搜索 API 调用（使用 Tavily API 作为示例）
+async function search_web(query) {
+  const apiKey = process.env.TAVILY_API_KEY || process.env.WEB_SEARCH_API_KEY;
+  
+  if (!apiKey) {
+    console.warn("[WARN] TAVILY_API_KEY or WEB_SEARCH_API_KEY is not set. Web search will be skipped.");
+    return null;
+  }
+
+  try {
+    // 使用 Tavily API（专门为 AI 设计的搜索 API）
+    const response = await axios.post(
+      "https://api.tavily.com/search",
+      {
+        api_key: apiKey,
+        query: query,
+        search_depth: "basic",
+        max_results: 5,
+        include_answer: true,
+        include_raw_content: false,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        timeout: 30_000,
+      }
+    );
+
+    const data = response.data;
+    
+    // 解析 Tavily 返回结果
+    if (data && (data.results || data.answer)) {
+      const results = [];
+      
+      // 如果有答案，优先使用
+      if (data.answer) {
+        results.push({
+          snippet: data.answer.slice(0, 1200),
+          source: "网络搜索答案",
+          score: 1.0,
+        });
+      }
+      
+      // 添加搜索结果
+      if (Array.isArray(data.results) && data.results.length > 0) {
+        data.results.forEach((item) => {
+          if (item.content) {
+            results.push({
+              snippet: item.content.slice(0, 1200),
+              source: item.title || item.url || "网络搜索结果",
+              score: item.score || 0.8,
+            });
+          }
+        });
+      }
+      
+      if (results.length > 0) {
+        return results.slice(0, 5);
+      }
+    }
+    
+    return null;
+  } catch (err) {
+    console.error("Web search API error:", err?.response?.data || err?.message || err);
+    
+    // 如果 Tavily 失败，可以尝试其他搜索 API（如 Serper）
+    if (process.env.SERPER_API_KEY) {
+      try {
+        const serperResponse = await axios.post(
+          "https://google.serper.dev/search",
+          {
+            q: query,
+            num: 5,
+          },
+          {
+            headers: {
+              "X-API-KEY": process.env.SERPER_API_KEY,
+              "Content-Type": "application/json",
+            },
+            timeout: 30_000,
+          }
+        );
+        
+        const serperData = serperResponse.data;
+        if (serperData && Array.isArray(serperData.organic)) {
+          return serperData.organic.slice(0, 5).map((item) => ({
+            snippet: (item.snippet || item.description || "").slice(0, 1200),
+            source: item.title || item.link || "网络搜索结果",
+            score: item.position ? 1.0 / (item.position + 1) : 0.8,
+          }));
+        }
+      } catch (serperErr) {
+        console.error("Serper API error:", serperErr?.response?.data || serperErr?.message);
+      }
+    }
+    
+    return null;
+  }
+}
+
 // 上传并导入文档
 app.post("/api/ingest", upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: true, message: "Missing file" });
@@ -493,13 +646,14 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
     }
 
     // 工具定义（让模型决定是否调用 RAG）
+    // 注意：Reaxys 和联网搜索不在工具列表中，它们会在 RAG 无结果时自动调用
     const tools = [
       {
         type: "function",
         function: {
           name: "search_rag",
           description:
-            "Retrieve relevant knowledge about an organic chemical entity or concept",
+            "Retrieve relevant knowledge about an organic chemical entity or concept from local knowledge base. Use this when you need to search for information in the local knowledge base.",
           parameters: {
             type: "object",
             properties: {
@@ -537,29 +691,74 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
       (tc) => tc?.type === "function" && tc?.function?.name === "search_rag"
     );
 
-    if (ragCall) {
-      console.log("RAG Called");
-
-      // 尝试从工具调用中解析 query
-      let ragQuery = "";
+    // 辅助函数：解析工具调用的 query 参数
+    function extractQueryFromToolCall(toolCall) {
       try {
-        const args = ragCall.function?.arguments;
+        const args = toolCall?.function?.arguments;
         const parsed = typeof args === "string" ? JSON.parse(args) : args;
         if (parsed && typeof parsed.query === "string") {
-          ragQuery = parsed.query;
+          return parsed.query;
         }
       } catch {
-        // 忽略解析错误，后续用回退
+        // 忽略解析错误
+      }
+      return null;
+    }
+
+    // 辅助函数：判断搜索结果是否与问题相关
+    async function isSearchResultsRelevant(searchResults, query, sourceName) {
+      if (!searchResults || searchResults.length === 0) {
+        return false;
       }
 
-      // 回退策略
-      const fallbackQuery = question || imageDescription || fileDescription || "";
-      ragQuery = ragQuery || fallbackQuery;
+      const contextText = (searchResults || [])
+        .map((r, i) => `[${i + 1}] ${r?.snippet || ""}`)
+        .join("\n\n");
 
-      // 执行检索
-      results = ragQuery ? await search_rag(ragQuery, 5) : [];
+      const relevancePrompt = `请判断以下搜索结果是否与用户问题相关。
 
-      const contextText = (results || [])
+用户问题：${query}
+
+搜索结果（来自${sourceName}）：
+${contextText}
+
+请只回答"相关"或"不相关"，不要输出其他内容。如果搜索结果能够帮助回答用户问题，回答"相关"；如果搜索结果与问题无关或无法提供有用信息，回答"不相关"。`;
+
+      try {
+        const relevanceCheck = await postChatCompletion({
+          model: "gpt-4o",
+          temperature: 0.1,
+          messages: [
+            {
+              role: "system",
+              content: "你是一个相关性判断助手，只需要回答'相关'或'不相关'。",
+            },
+            {
+              role: "user",
+              content: relevancePrompt,
+            },
+          ],
+        });
+
+        const response = (relevanceCheck?.choices?.[0]?.message?.content || "").trim();
+        const isRelevant = response.includes("相关") && !response.includes("不相关");
+        
+        console.log(`${sourceName} relevance check: ${isRelevant ? "相关" : "不相关"}`);
+        return isRelevant;
+      } catch (err) {
+        console.error(`Relevance check error for ${sourceName}:`, err?.message || err);
+        // 如果判断失败，默认认为相关（保守策略）
+        return true;
+      }
+    }
+
+    // 辅助函数：处理搜索结果并生成答案
+    async function processSearchResults(searchResults, sourceName) {
+      if (!searchResults || searchResults.length === 0) {
+        return null;
+      }
+
+      const contextText = (searchResults || [])
         .map((r, i) => `[${i + 1}] ${r?.snippet || ""}`)
         .join("\n\n");
 
@@ -587,7 +786,97 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
         messages: [...baseMessages, { role: "user", content: secondUserContent }],
       });
 
-      answerText = second?.choices?.[0]?.message?.content || "";
+      return second?.choices?.[0]?.message?.content || "";
+    }
+
+    // 辅助函数：尝试搜索并判断相关性，如果相关则处理结果
+    async function trySearchWithRelevanceCheck(searchFunc, query, sourceName, currentQuery) {
+      const searchResults = await searchFunc(query);
+      
+      if (!searchResults || searchResults.length === 0) {
+        console.log(`${sourceName} found no results`);
+        return { success: false, results: null, answerText: null };
+      }
+
+      console.log(`${sourceName} found ${searchResults.length} results`);
+      const isRelevant = await isSearchResultsRelevant(searchResults, currentQuery || query, sourceName);
+      
+      if (isRelevant) {
+        console.log(`${sourceName} results are relevant, using them`);
+        const answerText = await processSearchResults(searchResults, sourceName);
+        return { success: true, results: searchResults, answerText };
+      } else {
+        console.log(`${sourceName} results are not relevant`);
+        return { success: false, results: null, answerText: null };
+      }
+    }
+
+    if (ragCall) {
+      console.log("RAG Called");
+
+      // 尝试从工具调用中解析 query
+      let ragQuery = extractQueryFromToolCall(ragCall);
+      
+      // 回退策略
+      if (!ragQuery) {
+        ragQuery = question || imageDescription || fileDescription || "";
+      }
+
+      const currentQuery = ragQuery || question || imageDescription || fileDescription || "";
+
+      // 执行 RAG 检索并判断相关性
+      const ragResult = await trySearchWithRelevanceCheck(
+        async (q) => await search_rag(q, 5),
+        ragQuery,
+        "RAG",
+        currentQuery
+      );
+
+      if (ragResult.success) {
+        // RAG 结果相关，使用它
+        results = ragResult.results;
+        answerText = ragResult.answerText;
+      } else {
+        // RAG 没搜到或不相关，尝试 Reaxys
+        console.log("Trying Reaxys...");
+        const reaxysResult = await trySearchWithRelevanceCheck(
+          search_reaxys,
+          currentQuery,
+          "Reaxys",
+          currentQuery
+        );
+
+        if (reaxysResult.success) {
+          // Reaxys 结果相关，使用它
+          results = reaxysResult.results;
+          answerText = reaxysResult.answerText;
+        } else {
+          // Reaxys 没搜到或不相关，尝试联网搜索
+          console.log("Trying web search...");
+          const webResult = await trySearchWithRelevanceCheck(
+            search_web,
+            currentQuery,
+            "Web",
+            currentQuery
+          );
+
+          if (webResult.success) {
+            // 联网搜索结果相关，使用它
+            results = webResult.results;
+            answerText = webResult.answerText;
+          } else {
+            // 所有搜索都没结果或不相关，再次调用模型直接回答
+            console.log("All searches failed or not relevant, asking model to answer directly");
+            const directAnswer = await postChatCompletion({
+              model: "gpt-4o",
+              temperature: 0.2,
+              messages: [...baseMessages, { role: "user", content: userContent }],
+            });
+            answerText = directAnswer?.choices?.[0]?.message?.content || "抱歉，我无法找到相关信息来回答您的问题。";
+            results = [];
+          }
+        }
+      }
     } else {
       console.log("RAG Uncalled");
       // 未调用 RAG：直接采用第一次结果
