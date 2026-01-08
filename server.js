@@ -43,7 +43,7 @@ import {
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = 3001;
 
 // 确保环境
 const REQUIRED_ENVS = ["BASE_URL", "OPENAI_API_KEY"];
@@ -1390,7 +1390,7 @@ app.post("/api/feedback", async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Backend server running at http://localhost:${port}`);
+  console.log(`Backend server running at ${process.env.VITE_API_BASE}`);
 });
 
 // 针对未处理拒绝的安全网
