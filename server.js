@@ -118,13 +118,13 @@ async function postChatCompletion(body) {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    timeout: 60_000,
+    timeout: 600_000,
   });
   return data;
 }
 
 // 图片解析
-async function chatVision(imagePathOrUrl, prompt = "请解析这张图", model = "gpt-4o") {
+async function chatVision(imagePathOrUrl, prompt = "请解析这张图", model = "gemini-3-pro-preview") {
   let imageItem;
   if (/^https?:\/\//i.test(imagePathOrUrl)) {
     imageItem = { type: "image_url", image_url: { url: imagePathOrUrl } };
@@ -157,7 +157,7 @@ async function chatVision(imagePathOrUrl, prompt = "请解析这张图", model =
 async function recognizeImageContent(imagePath) {
   const prompt =
     "请对这张图的内容做尽可能详细的描述，保证你的描述能涵盖图片中的所有信息。仅输出该描述，不要输出其他多余内容。";
-  return chatVision(imagePath, prompt, "gpt-4o");
+  return chatVision(imagePath, prompt, "gemini-3-pro-preview");
 }
 
 // 识别文件内容（提取文本并生成描述）
@@ -665,7 +665,7 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
       },
     ];
 
-    // 第一次调用：使用支持视觉的模型 + 工具
+    // 第一次调用：使用支持视觉且反应快速的模型
     const first = await postChatCompletion({
       model: "gpt-4o",
       temperature: 0.2,
@@ -783,7 +783,7 @@ ${contextText}
       }
 
       const second = await postChatCompletion({
-        model: "gpt-4o",
+        model: "gemini-3-pro-preview",
         temperature: 0.2,
         messages: [...baseMessages, { role: "user", content: secondUserContent }],
       });
@@ -870,7 +870,7 @@ ${contextText}
             // 所有搜索都没结果或不相关，再次调用模型直接回答
             console.log("All searches failed or not relevant, asking model to answer directly");
             const directAnswer = await postChatCompletion({
-              model: "gpt-4o",
+              model: "gemini-3-pro-preview",
               temperature: 0.2,
               messages: [...baseMessages, { role: "user", content: userContent }],
             });
