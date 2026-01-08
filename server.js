@@ -1348,7 +1348,7 @@ app.post("/api/clear", optionalAuth, async (req, res) => {
     const { session_id } = req.body || {};
     const user_id = req.user?.userId || null;
     
-    // 优先使用user_id，如果没有则使用session_id（兼容旧版本）
+    // 优先使用user_id，如果没有则使用session_id
     const deleted = clearChats(session_id, user_id);
     res.json({ ok: true, deleted });
   } catch (err) {
