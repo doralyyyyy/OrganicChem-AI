@@ -21,8 +21,12 @@ import {
   X,
   BookOpen,
   ChevronLeft,
-  Search
+  Search,
+  LogIn,
+  LogOut,
+  User
 } from "lucide-react";
+import Auth from "./Auth.jsx";
 import { BiSend } from "react-icons/bi";
 import { motion } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -494,6 +498,20 @@ function App() {
   const [feedbackMsg, setFeedbackMsg] = useState("");
   const [sending, setSending] = useState(false);
 
+  // 登录状态
+  const [user, setUser] = useState(() => {
+    try {
+      const userInfo = localStorage.getItem("user_info");
+      return userInfo ? JSON.parse(userInfo) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [token, setToken] = useState(() => {
+    return localStorage.getItem("auth_token") || null;
+  });
+  const [showAuth, setShowAuth] = useState(false);
+
   // Abort controller
   const requestControllerRef = useRef(null);
   // speech
@@ -503,8 +521,11 @@ function App() {
     typeof window !== "undefined" && !!window.SmilesDrawer
   );
 
-  // session id
-  const [session_id] = useState(() => {
+  // session id（兼容旧版本，如果已登录则使用user_id）
+  const session_id = useMemo(() => {
+    if (user) {
+      return `user_${user.id}`;
+    }
     let sid = localStorage.getItem("oc_session_id");
     if (!sid) {
       sid =
@@ -512,11 +533,73 @@ function App() {
       localStorage.setItem("oc_session_id", sid);
     }
     return sid;
-  });
+  }, [user]);
 
+  // 登录处理
+  async function handleLogin(userData, authToken) {
+    setUser(userData);
+    setToken(authToken);
+    localStorage.setItem("auth_token", authToken);
+    localStorage.setItem("user_info", JSON.stringify(userData));
+    
+    // 登录后从服务器获取历史记录
+    try {
+      const headers = { "Content-Type": "application/json" };
+      headers["Authorization"] = `Bearer ${authToken}`;
+      const resp = await fetch(`${import.meta.env.VITE_API_BASE}/api/history?limit=${MAX_HISTORY}`, {
+        method: "GET",
+        headers,
+      });
+      const data = await resp.json();
+      if (data.ok && data.history && Array.isArray(data.history)) {
+        setHistory(data.history);
+        localStorage.setItem("oc_history_v1", JSON.stringify(data.history));
+      }
+    } catch (err) {
+      console.error("获取历史记录失败:", err);
+    }
+  }
+
+  // 登出处理
+  function handleLogout() {
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("user_info");
+    setHistory([]);
+    localStorage.removeItem("oc_history_v1");
+  }
+
+  // 保存历史记录到localStorage（但登录用户优先使用服务器数据）
   useEffect(() => {
-    localStorage.setItem("oc_history_v1", JSON.stringify(history));
-  }, [history]);
+    if (!user) {
+      // 未登录用户才保存到localStorage
+      localStorage.setItem("oc_history_v1", JSON.stringify(history));
+    }
+  }, [history, user]);
+
+  // 登录后或token变化时，从服务器获取历史记录
+  useEffect(() => {
+    if (user && token) {
+      async function fetchHistory() {
+        try {
+          const headers = { "Content-Type": "application/json" };
+          headers["Authorization"] = `Bearer ${token}`;
+          const resp = await fetch(`${import.meta.env.VITE_API_BASE}/api/history?limit=${MAX_HISTORY}`, {
+            method: "GET",
+            headers,
+          });
+          const data = await resp.json();
+          if (data.ok && data.history && Array.isArray(data.history)) {
+            setHistory(data.history);
+          }
+        } catch (err) {
+          console.error("获取历史记录失败:", err);
+        }
+      }
+      fetchHistory();
+    }
+  }, [user, token]);
 
   // dynamic load SmilesDrawer
   useEffect(() => {
@@ -816,8 +899,14 @@ function App() {
         formData.append("file", file);
       }
 
+      const headers = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const resp = await fetch(`${import.meta.env.VITE_API_BASE}/api/solve`, {
         method: "POST",
+        headers,
         body: formData,
         signal: controller.signal,
       });
@@ -929,9 +1018,13 @@ h2 { font-size: 16px; margin-top: 18px; }
     setHistory([]);
     localStorage.removeItem("oc_history_v1");
     try {
+      const headers = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
       const resp = await fetch(`${import.meta.env.VITE_API_BASE}/api/clear`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ session_id }),
       });
       const data = await resp.json();
@@ -939,7 +1032,7 @@ h2 { font-size: 16px; margin-top: 18px; }
         console.error("❌ 清空失败:", data.message);
       }
     } catch (err) {
-    console.error("请求错误:", err);
+      console.error("请求错误:", err);
     }
   }
 
@@ -1034,24 +1127,51 @@ h2 { font-size: 16px; margin-top: 18px; }
               交互式教学 · 可视化分子 · 可追溯知识单元
             </p>
           </div>
-          <div className="flex gap-3 items-center">
+          <div className="flex gap-2 sm:gap-3 items-center flex-wrap">
+            {user ? (
+              <>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 text-slate-700">
+                  <User size={14} />
+                  <span className="text-sm font-medium hidden sm:inline">{user.username}</span>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  type="button"
+                  className="px-3 py-2 rounded-lg bg-red-600 text-white flex items-center gap-2 hover:bg-red-700 text-sm"
+                  aria-label="登出"
+                  title="登出"
+                >
+                  <LogOut size={14} /> <span className="hidden sm:inline">登出</span>
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setShowAuth(true)}
+                type="button"
+                className="px-3 py-2 rounded-lg bg-indigo-600 text-white flex items-center gap-2 hover:bg-indigo-700 text-sm"
+                aria-label="登录"
+                title="登录"
+              >
+                <LogIn size={14} /> <span className="hidden sm:inline">登录</span>
+              </button>
+            )}
             <button
               onClick={() => setDocMgrOpen(true)}
               type="button"
-              className="px-3 py-2 rounded-lg bg-indigo-600 text-white flex items-center gap-2 hover:bg-indigo-700"
+              className="px-3 py-2 rounded-lg bg-indigo-600 text-white flex items-center gap-2 hover:bg-indigo-700 text-sm"
               aria-label="文档管理"
               title="文档管理"
             >
-              <BookOpen size={14} /> 文档管理
+              <BookOpen size={14} /> <span className="hidden sm:inline">文档管理</span>
             </button>
             <button
               onClick={handleClearHistory}
               type="button"
-              className="px-3 py-2 rounded-lg bg-green-600 text-white flex items-center gap-2 hover:bg-green-700"
+              className="px-3 py-2 rounded-lg bg-green-600 text-white flex items-center gap-2 hover:bg-green-700 text-sm"
               aria-label="清空历史"
               title="清空历史"
             >
-              <Trash2 size={14} /> 清除历史
+              <Trash2 size={14} /> <span className="hidden sm:inline">清除历史</span>
             </button>
           </div>
         </motion.header>
@@ -1550,6 +1670,14 @@ h2 { font-size: 16px; margin-top: 18px; }
 
       {/* 文档管理：全屏弹层 */}
       {docMgrOpen && <DocumentManager onClose={() => setDocMgrOpen(false)} />}
+
+      {/* 登录注册弹层 */}
+      {showAuth && (
+        <Auth
+          onClose={() => setShowAuth(false)}
+          onLogin={handleLogin}
+        />
+      )}
     </div>
   );
 }

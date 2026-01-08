@@ -9,6 +9,8 @@ import dotenv from "dotenv";
 import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
 import nodemailer from "nodemailer";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 
 import {
   ingestFileToDB,
@@ -26,7 +28,16 @@ import {
   getChunksByDoc,
   deleteChunkById,
   deleteDocCascade,
-  countChunksForDoc
+  countChunksForDoc,
+  createUser,
+  getUserByUsername,
+  getUserByEmail,
+  getUserById,
+  checkUsernameExists,
+  checkEmailExists,
+  createVerificationCode,
+  verifyCode,
+  cleanupExpiredCodes
 } from "./db.js";
 
 dotenv.config();
@@ -35,7 +46,7 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 // 确保环境
-const REQUIRED_ENVS = ["BASE_URL", "AIZEX_API_KEY"];
+const REQUIRED_ENVS = ["BASE_URL", "OPENAI_API_KEY"];
 for (const key of REQUIRED_ENVS) {
   if (!process.env[key]) {
     console.warn(`[WARN] ENV ${key} is not set. Please configure it in .env`);
@@ -55,6 +66,43 @@ app.use(
 
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+
+// JWT密钥
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
+
+// 认证中间件（可选，某些接口需要）
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
+
+  if (!token) {
+    return res.status(401).json({ error: true, message: "未提供认证令牌" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(403).json({ error: true, message: "无效的认证令牌" });
+  }
+}
+
+// 可选认证中间件（有token则验证，没有则跳过）
+function optionalAuth(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      req.user = decoded;
+    } catch (err) {
+      // token无效，但不阻止请求
+    }
+  }
+  next();
+}
 
 // 确保Upload文件夹存在
 const UPLOAD_DIR = path.resolve("uploads");
@@ -109,9 +157,9 @@ function parseEmbeddingMaybe(s) {
 // OpenAI的API包装器
 async function postChatCompletion(body) {
   const baseURL = process.env.BASE_URL;
-  const apiKey = process.env.AIZEX_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!baseURL || !apiKey) {
-    throw new Error("Missing BASE_URL or AIZEX_API_KEY");
+    throw new Error("Missing BASE_URL or OPENAI_API_KEY");
   }
   const { data } = await axios.post(`${baseURL}/chat/completions`, body, {
     headers: {
@@ -532,7 +580,22 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
     // 基础入参与校验
     const questionRaw = req.body?.question;
     const question = typeof questionRaw === "string" ? questionRaw.trim() : "";
-    const session_id = req.body?.session_id || "default";
+    
+    // 从token中获取user_id，如果没有则使用session_id（兼容旧版本）
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1];
+    let user_id = null;
+    let session_id = req.body?.session_id || "default";
+    
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        user_id = decoded.userId;
+        session_id = `user_${user_id}`; // 使用user_id作为session_id
+      } catch (err) {
+        // token无效，继续使用session_id
+      }
+    }
 
     if (!question && !imagePath && !filePath) {
       return res
@@ -583,7 +646,7 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
 
     // 近期对话历史（用于保持上下文）
     const history =
-      (getChats(session_id, 10) || []).map((h) => ({
+      (getChats(session_id, 10, user_id) || []).map((h) => ({
         role: h.role,
         content: h.content,
       })) || [];
@@ -887,8 +950,8 @@ ${contextText}
     }
 
     // 存储聊天记录（含识别描述）
-    insertChat(session_id, "user", fullQuestion || "");
-    insertChat(session_id, "assistant", answerText || "");
+    insertChat(session_id, "user", fullQuestion || "", user_id);
+    insertChat(session_id, "assistant", answerText || "", user_id);
 
     // 仅返回"答案中实际引用过"的 sources（按首次出现顺序），并重新编号为连续编号
     let sources = [];
@@ -995,11 +1058,298 @@ ${contextText}
   }
 });
 
-// 清空历史记录接口
-app.post("/api/clear", async (req, res) => {
+// 发送验证码接口
+app.post("/api/auth/send-code", async (req, res) => {
+  try {
+    const { email, type = "register" } = req.body || {};
+    
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: true, message: "无效的邮箱地址" });
+    }
+
+    if (type === "register" && checkEmailExists(email)) {
+      return res.status(400).json({ error: true, message: "该邮箱已被注册" });
+    }
+
+    if (type === "login") {
+      const user = getUserByEmail(email);
+      if (!user) {
+        return res.status(404).json({ error: true, message: "该邮箱未注册" });
+      }
+    }
+
+    // 生成6位数字验证码
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // 保存验证码到数据库
+    createVerificationCode(email, code, type, 10); // 10分钟有效期
+
+    // 发送邮件
+    const user = process.env.FEEDBACK_EMAIL_USER;
+    const pass = process.env.FEEDBACK_EMAIL_PASS;
+    if (!user || !pass) {
+      return res.status(500).json({ error: true, message: "邮件服务未配置" });
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: "smtp.qq.com",
+      port: 465,
+      secure: true,
+      auth: { user, pass },
+    });
+
+    const subject = type === "register" ? "注册验证码" : "登录验证码";
+    await transporter.sendMail({
+      from: `OrganicChem AI <${user}>`,
+      to: email,
+      subject: `[OrganicChem AI] ${subject}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #4F46E5;">OrganicChem AI ${subject}</h2>
+          <p>您的验证码是：</p>
+          <div style="background: #F3F4F6; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0; border-radius: 8px;">
+            ${code}
+          </div>
+          <p style="color: #6B7280; font-size: 14px;">验证码有效期为10分钟，请勿泄露给他人。</p>
+        </div>
+      `,
+    });
+
+    // 清理过期验证码
+    cleanupExpiredCodes();
+
+    res.json({ ok: true, message: "验证码已发送" });
+  } catch (err) {
+    console.error("Send code error:", err);
+    res.status(500).json({ error: true, message: err.message || String(err) });
+  }
+});
+
+// 注册接口
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { username, email, password, confirmPassword, code } = req.body || {};
+
+    // 验证输入
+    if (!username || username.trim().length < 3 || username.trim().length > 20) {
+      return res.status(400).json({ error: true, message: "用户名长度应在3-20个字符之间" });
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: true, message: "无效的邮箱地址" });
+    }
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: true, message: "密码长度至少6个字符" });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({ error: true, message: "两次输入的密码不一致" });
+    }
+
+    if (!code || code.length !== 6) {
+      return res.status(400).json({ error: true, message: "请输入6位验证码" });
+    }
+
+    // 检查用户名和邮箱是否已存在
+    if (checkUsernameExists(username.trim())) {
+      return res.status(400).json({ error: true, message: "用户名已存在" });
+    }
+
+    if (checkEmailExists(email)) {
+      return res.status(400).json({ error: true, message: "邮箱已被注册" });
+    }
+
+    // 验证验证码
+    if (!verifyCode(email, code, "register")) {
+      return res.status(400).json({ error: true, message: "验证码错误或已过期" });
+    }
+
+    // 加密密码
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // 创建用户
+    const userId = createUser(username.trim(), email, passwordHash);
+
+    // 生成JWT token
+    const token = jwt.sign({ userId, username: username.trim(), email }, JWT_SECRET, {
+      expiresIn: "30d",
+    });
+
+    res.json({
+      ok: true,
+      token,
+      user: { id: userId, username: username.trim(), email },
+    });
+  } catch (err) {
+    console.error("Register error:", err);
+    res.status(500).json({ error: true, message: err.message || String(err) });
+  }
+});
+
+// 登录接口（账号/邮箱+密码）
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { account, password } = req.body || {}; // account可以是用户名或邮箱
+
+    if (!account || !password) {
+      return res.status(400).json({ error: true, message: "请输入账号和密码" });
+    }
+
+    // 查找用户（通过用户名或邮箱）
+    const user = getUserByUsername(account) || getUserByEmail(account);
+    if (!user) {
+      return res.status(401).json({ error: true, message: "账号或密码错误" });
+    }
+
+    // 验证密码
+    const isValid = await bcrypt.compare(password, user.password_hash);
+    if (!isValid) {
+      return res.status(401).json({ error: true, message: "账号或密码错误" });
+    }
+
+    // 生成JWT token
+    const token = jwt.sign(
+      { userId: user.id, username: user.username, email: user.email },
+      JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+
+    res.json({
+      ok: true,
+      token,
+      user: { id: user.id, username: user.username, email: user.email },
+    });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: true, message: err.message || String(err) });
+  }
+});
+
+// 登录接口（邮箱+验证码）
+app.post("/api/auth/login-code", async (req, res) => {
+  try {
+    const { email, code } = req.body || {};
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: true, message: "无效的邮箱地址" });
+    }
+
+    if (!code || code.length !== 6) {
+      return res.status(400).json({ error: true, message: "请输入6位验证码" });
+    }
+
+    // 查找用户
+    const user = getUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ error: true, message: "该邮箱未注册" });
+    }
+
+    // 验证验证码
+    if (!verifyCode(email, code, "login")) {
+      return res.status(400).json({ error: true, message: "验证码错误或已过期" });
+    }
+
+    // 生成JWT token
+    const token = jwt.sign(
+      { userId: user.id, username: user.username, email: user.email },
+      JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+
+    res.json({
+      ok: true,
+      token,
+      user: { id: user.id, username: user.username, email: user.email },
+    });
+  } catch (err) {
+    console.error("Login with code error:", err);
+    res.status(500).json({ error: true, message: err.message || String(err) });
+  }
+});
+
+// 获取当前用户信息
+app.get("/api/auth/me", authenticateToken, async (req, res) => {
+  try {
+    const user = getUserById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ error: true, message: "用户不存在" });
+    }
+    res.json({ ok: true, user: { id: user.id, username: user.username, email: user.email } });
+  } catch (err) {
+    res.status(500).json({ error: true, message: err.message || String(err) });
+  }
+});
+
+// 获取用户历史记录
+app.get("/api/history", optionalAuth, async (req, res) => {
+  try {
+    const user_id = req.user?.userId || null;
+    const limit = parseInt(req.query.limit) || 50;
+    
+    if (!user_id) {
+      return res.json({ ok: true, history: [] });
+    }
+
+    // 获取用户的所有对话记录，按时间正序（从旧到新）
+    const chats = getChats(`user_${user_id}`, limit * 2, user_id); // 获取更多，因为需要配对
+    
+    // 将对话记录转换为历史记录格式（成对的 user-assistant）
+    const history = [];
+    let currentPair = null;
+    
+    // 按时间顺序处理，将user和assistant配对
+    for (const chat of chats) {
+      if (chat.role === "user") {
+        // 如果有未完成的pair，先保存（上一个问题没有答案的情况）
+        if (currentPair) {
+          history.push(currentPair);
+        }
+        currentPair = {
+          query: chat.content,
+          text: "",
+          id: chat.id || Date.now(),
+          localTs: chat.created_at || Date.now(),
+        };
+      } else if (chat.role === "assistant") {
+        if (currentPair) {
+          // 有对应的问题，配对成功
+          currentPair.text = chat.content;
+          history.push(currentPair);
+          currentPair = null;
+        } else {
+          // 没有对应的问题，可能是旧数据，单独保存
+          history.push({
+            query: "",
+            text: chat.content,
+            id: chat.id || Date.now(),
+            localTs: chat.created_at || Date.now(),
+          });
+        }
+      }
+    }
+    
+    // 如果最后一个pair只有问题没有答案，也保存
+    if (currentPair) {
+      history.push(currentPair);
+    }
+
+    // 反转，最新的在前（因为数据库返回的是从旧到新）
+    res.json({ ok: true, history: history.reverse() });
+  } catch (err) {
+    console.error("Get history error:", err);
+    res.status(500).json({ error: true, message: err.message || String(err) });
+  }
+});
+
+// 清空历史记录接口（需要认证）
+app.post("/api/clear", optionalAuth, async (req, res) => {
   try {
     const { session_id } = req.body || {};
-    const deleted = clearChats(session_id);
+    const user_id = req.user?.userId || null;
+    
+    // 优先使用user_id，如果没有则使用session_id（兼容旧版本）
+    const deleted = clearChats(session_id, user_id);
     res.json({ ok: true, deleted });
   } catch (err) {
     res.status(500).json({ error: true, message: err.message || String(err) });
