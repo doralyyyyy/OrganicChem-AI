@@ -23,7 +23,7 @@
 
 **数据库文件**
 
-* 由于数据库文件过大无法上传至Github，请在 [北大网盘](https://disk.pku.edu.cn/link/AA53BE8BB4F83E488F8896910B2368FB84) 中下载 `memory.db` ，并将其放入主目录文件夹中。
+* 由于数据库文件过大无法上传至Github，请在 [北大网盘](https://disk.pku.edu.cn/link/AA53BE8BB4F83E488F8896910B2368FB84) 中下载 `memory.db` 及 `covers` 文件夹 ，并将其放入主目录文件夹中。
 
 ---
 

@@ -37,7 +37,22 @@ import {
   checkEmailExists,
   createVerificationCode,
   verifyCode,
-  cleanupExpiredCodes
+  cleanupExpiredCodes,
+  createBook,
+  updateBook,
+  getBookById,
+  listBooks,
+  listBooksWithStats,
+  deleteBook,
+  createChapter,
+  updateChapter,
+  getChapterById,
+  getChaptersByBook,
+  deleteChapter,
+  updateDocChapter,
+  getDocByChapter,
+  countChunksForChapter,
+  getChunksByChapter
 } from "./db.js";
 
 dotenv.config();
@@ -57,7 +72,7 @@ for (const key of REQUIRED_ENVS) {
 app.use(
   cors({
     origin: "*",
-    methods: ["GET", "POST", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     preflightContinue: false,
     optionsSuccessStatus: 204,
@@ -108,6 +123,25 @@ function optionalAuth(req, res, next) {
 const UPLOAD_DIR = path.resolve("uploads");
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+// 确保封面文件夹存在
+const COVERS_DIR = path.resolve("covers");
+if (!fs.existsSync(COVERS_DIR)) {
+  fs.mkdirSync(COVERS_DIR, { recursive: true });
+}
+
+// 静态文件服务（封面图片）
+app.use("/covers", express.static(COVERS_DIR));
+
+// 删除操作密码验证中间件
+const DELETE_PASSWORD = process.env.DELETE_PASSWORD || "admin123";
+function verifyDeletePassword(req, res, next) {
+  const { password } = req.body || {};
+  if (password !== DELETE_PASSWORD) {
+    return res.status(401).json({ ok: false, message: "删除密码错误" });
+  }
+  next();
 }
 
 // Multer 上传配置
@@ -399,12 +433,13 @@ async function search_web(query) {
   }
 }
 
-// 上传并导入文档
+// 上传并导入文档（支持指定章节ID）
 app.post("/api/ingest", upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: true, message: "Missing file" });
 
   const fp = req.file.path;
   let originalname = req.file.originalname;
+  const chapterId = req.body?.chapter_id || null;
 
   try {
     try {
@@ -417,7 +452,13 @@ app.post("/api/ingest", upload.single("file"), async (req, res) => {
       onProgress: ({ total, done }) => {
         console.log(`Ingesting ${originalname} : ${done}/${total}`);
       },
+      chapterId, // 传递章节ID
     });
+
+    // 如果指定了章节ID，更新文档的chapter_id
+    if (chapterId && result?.docId) {
+      updateDocChapter(result.docId, chapterId);
+    }
 
     return res.json({ ok: true, ...result });
   } catch (err) {
@@ -493,12 +534,275 @@ app.delete("/api/chunk/:id", (req, res) => {
 });
 
 // 删除整个文档（及所有 chunks）
-app.delete("/api/doc/:id", (req, res) => {
+app.delete("/api/doc/:id", verifyDeletePassword, (req, res) => {
   try {
     const id = req.params.id;
     const { delChunks, delDoc } = deleteDocCascade(id);
     if (!delDoc) return res.status(404).json({ ok: false, message: "Doc not found" });
     res.json({ ok: true, deletedDoc: delDoc, deletedChunks: delChunks });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 书籍相关API
+
+// 获取所有书籍
+app.get("/api/books", (req, res) => {
+  try {
+    const books = listBooksWithStats();
+    res.json({ ok: true, books });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 获取单个书籍详情
+app.get("/api/book/:id", (req, res) => {
+  try {
+    const id = req.params.id;
+    const book = getBookById(id);
+    if (!book) return res.status(404).json({ ok: false, message: "Book not found" });
+    res.json({ ok: true, book });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 创建书籍
+app.post("/api/books", (req, res, next) => {
+  upload.fields([{ name: "cover", maxCount: 1 }])(req, res, (err) => {
+    if (err) {
+      console.error("Multer error:", err);
+      return res.status(400).json({ ok: false, message: err.message || "文件上传失败" });
+    }
+    next();
+  });
+}, async (req, res) => {
+  try {
+    const { title } = req.body || {};
+    if (!title || !title.trim()) {
+      return res.status(400).json({ ok: false, message: "书名不能为空" });
+    }
+
+    const bookId = uuidv4();
+    let coverPath = null;
+
+    // 处理封面上传
+    if (req.files?.cover?.[0]) {
+      const coverFile = req.files.cover[0];
+      const ext = path.extname(coverFile.originalname || "");
+      const coverFilename = `${bookId}${ext}`;
+      coverPath = path.join(COVERS_DIR, coverFilename);
+      await fsp.rename(coverFile.path, coverPath);
+      coverPath = `/covers/${coverFilename}`; // 返回相对路径
+    }
+
+    createBook(bookId, title.trim(), coverPath);
+    const book = getBookById(bookId);
+    res.json({ ok: true, book });
+  } catch (err) {
+    console.error("Create book error:", err);
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 更新书籍（书名和封面）
+app.put("/api/book/:id", (req, res, next) => {
+  upload.fields([{ name: "cover", maxCount: 1 }])(req, res, (err) => {
+    if (err) {
+      console.error("Multer error:", err);
+      return res.status(400).json({ ok: false, message: err.message || "文件上传失败" });
+    }
+    next();
+  });
+}, async (req, res) => {
+  try {
+    const id = req.params.id;
+    // multer处理multipart/form-data时，文本字段在req.body中
+    const title = req.body?.title;
+    const book = getBookById(id);
+    if (!book) {
+      return res.status(404).json({ ok: false, message: "Book not found" });
+    }
+
+    let coverPath = book.cover_path;
+
+    // 如果上传了新封面，替换旧封面
+    if (req.files?.cover?.[0]) {
+      // 删除旧封面
+      if (coverPath && coverPath.startsWith("/covers/")) {
+        const oldCoverPath = path.join(process.cwd(), coverPath);
+        try {
+          await fsp.unlink(oldCoverPath);
+        } catch (e) {
+          console.warn("Failed to delete old cover:", e);
+        }
+      }
+
+      const coverFile = req.files.cover[0];
+      const ext = path.extname(coverFile.originalname || "");
+      const coverFilename = `${id}${ext}`;
+      const newCoverPath = path.join(COVERS_DIR, coverFilename);
+      try {
+        await fsp.rename(coverFile.path, newCoverPath);
+        coverPath = `/covers/${coverFilename}`;
+      } catch (e) {
+        console.error("Failed to save cover:", e);
+        // 如果保存失败，尝试删除临时文件
+        try {
+          await fsp.unlink(coverFile.path);
+        } catch {}
+        return res.status(500).json({ ok: false, message: "保存封面失败" });
+      }
+    }
+
+    const newTitle = (title && title.trim()) || book.title;
+    updateBook(id, newTitle, coverPath);
+    const updatedBook = getBookById(id);
+    res.json({ ok: true, book: updatedBook });
+  } catch (err) {
+    console.error("Update book error:", err);
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 删除书籍（需要密码验证）
+app.delete("/api/book/:id", verifyDeletePassword, (req, res) => {
+  try {
+    const id = req.params.id;
+    // 先获取书籍信息（用于删除封面）
+    const book = getBookById(id);
+    if (!book) return res.status(404).json({ ok: false, message: "Book not found" });
+
+    // 删除封面文件
+    if (book.cover_path && book.cover_path.startsWith("/covers/")) {
+      const coverPath = path.join(process.cwd(), book.cover_path);
+      fsp.unlink(coverPath).catch(() => {});
+    }
+
+    // 删除书籍（级联删除章节、文档、分块）
+    const deleted = deleteBook(id);
+    if (!deleted) return res.status(404).json({ ok: false, message: "Book not found" });
+
+    res.json({ ok: true, deleted: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 章节相关API
+
+// 获取书籍的所有章节
+app.get("/api/book/:bookId/chapters", (req, res) => {
+  try {
+    const bookId = req.params.bookId;
+    const chapters = getChaptersByBook(bookId);
+    // 为每个章节添加分块数统计
+    const chaptersWithStats = chapters.map(ch => {
+      const chunkCount = countChunksForChapter(ch.id);
+      return { ...ch, chunk_count: chunkCount };
+    });
+    res.json({ ok: true, chapters: chaptersWithStats });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 获取单个章节详情
+app.get("/api/chapter/:id", (req, res) => {
+  try {
+    const id = req.params.id;
+    const chapter = getChapterById(id);
+    if (!chapter) return res.status(404).json({ ok: false, message: "Chapter not found" });
+    const chunkCount = countChunksForChapter(id);
+    res.json({ ok: true, chapter: { ...chapter, chunk_count: chunkCount } });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 创建章节
+app.post("/api/chapters", async (req, res) => {
+  try {
+    const { book_id, title, order_index } = req.body || {};
+    if (!book_id || !title || !title.trim()) {
+      return res.status(400).json({ ok: false, message: "书籍ID和章节标题不能为空" });
+    }
+
+    // 验证书籍存在
+    const book = getBookById(book_id);
+    if (!book) {
+      return res.status(404).json({ ok: false, message: "书籍不存在" });
+    }
+
+    const chapterId = uuidv4();
+    const order = order_index !== undefined ? parseInt(order_index) : 0;
+    createChapter(chapterId, book_id, title.trim(), order);
+    const chapter = getChapterById(chapterId);
+    res.json({ ok: true, chapter });
+  } catch (err) {
+    console.error("Create chapter error:", err);
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 更新章节（标题和排序）
+app.put("/api/chapter/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { title, order_index } = req.body || {};
+    const chapter = getChapterById(id);
+    if (!chapter) return res.status(404).json({ ok: false, message: "Chapter not found" });
+
+    const newTitle = title?.trim() || chapter.title;
+    const newOrder = order_index !== undefined ? parseInt(order_index) : chapter.order_index;
+    updateChapter(id, newTitle, newOrder);
+    const updatedChapter = getChapterById(id);
+    res.json({ ok: true, chapter: updatedChapter });
+  } catch (err) {
+    console.error("Update chapter error:", err);
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 删除章节（需要密码验证）
+app.delete("/api/chapter/:id", verifyDeletePassword, (req, res) => {
+  try {
+    const id = req.params.id;
+    const deleted = deleteChapter(id);
+    if (!deleted) return res.status(404).json({ ok: false, message: "Chapter not found" });
+    res.json({ ok: true, deleted: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 章节分块相关API
+
+// 获取章节的所有chunks
+app.get("/api/chapter/:id/chunks", (req, res) => {
+  try {
+    const id = req.params.id;
+    const rows = getChunksByChapter(id) || [];
+    const chunks = rows.map(r => ({
+      id: r.id,
+      content: r.content,
+      created_at: r.created_at
+    }));
+    res.json({ ok: true, chunks });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+// 删除单个 chunk（需要密码验证）
+app.delete("/api/chunk/:id", verifyDeletePassword, (req, res) => {
+  try {
+    const id = req.params.id;
+    const changes = deleteChunkById(id);
+    if (!changes) return res.status(404).json({ ok: false, message: "Chunk not found" });
+    res.json({ ok: true, deleted: changes });
   } catch (err) {
     res.status(500).json({ ok: false, message: err.message || String(err) });
   }

@@ -12,6 +12,7 @@ import {
   Printer,
   Trash2,
   ChevronDown,
+  ChevronUp,
   Upload,
   Mic,
   Paperclip,
@@ -129,31 +130,54 @@ function AnimatedLoader({ label = "系统正在检索答案…", size = 160, img
 }
 
 // 文档管理器
-function DocumentManager({ onClose }) {
+function DocumentManager({ onClose, onUploadChapter }) {
   const API = import.meta.env.VITE_API_BASE;
-  const [view, setView] = useState("list"); // 'list' | 'doc'
+  const [view, setView] = useState("books"); // 'books' | 'chapters' | 'chunks'
   const [loading, setLoading] = useState(false);
-  const [docs, setDocs] = useState([]);
-  const [docFilter, setDocFilter] = useState("");
-  const [selected, setSelected] = useState(null); // {id, filename, created_at, text, chunk_count}
+  const [books, setBooks] = useState([]);
+  const [selectedBook, setSelectedBook] = useState(null);
+  const [selectedChapter, setSelectedChapter] = useState(null);
+  const [chapters, setChapters] = useState([]);
   const [chunks, setChunks] = useState([]);
+  const [bookFilter, setBookFilter] = useState("");
+  const [chapterFilter, setChapterFilter] = useState("");
   const [chunkFilter, setChunkFilter] = useState("");
-  const [showDocText, setShowDocText] = useState(false);
   const [message, setMessage] = useState("");
+  const [showNewBookModal, setShowNewBookModal] = useState(false);
+  const [showEditBookModal, setShowEditBookModal] = useState(false);
+  const [showDeletePasswordModal, setShowDeletePasswordModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [pendingDeleteAction, setPendingDeleteAction] = useState(null);
+  const [editingChapter, setEditingChapter] = useState(null);
+  const [showChapterTitleModal, setShowChapterTitleModal] = useState(false);
+  const [pendingChapterFile, setPendingChapterFile] = useState(null);
+  const [chapterUploading, setChapterUploading] = useState(false);
+  const [chapterUploadMsg, setChapterUploadMsg] = useState("");
+  const [chapterDragActive, setChapterDragActive] = useState(false);
+  const [draggedChapterIndex, setDraggedChapterIndex] = useState(null);
 
   const totalChunks = useMemo(
-    () => docs.reduce((s, d) => s + (d.chunk_count || 0), 0),
-    [docs]
+    () => books.reduce((s, b) => s + (b.chunk_count || 0), 0),
+    [books]
   );
 
-  async function fetchDocs() {
+  // 获取删除密码（同步方式）
+  function promptDeletePassword() {
+    return new Promise((resolve) => {
+      setPendingDeleteAction(() => resolve);
+      setShowDeletePasswordModal(true);
+      setDeletePassword("");
+    });
+  }
+
+  async function fetchBooks() {
     setLoading(true);
     setMessage("");
     try {
-      const res = await fetch(`${API}/api/docs/stats`);
+      const res = await fetch(`${API}/api/books`);
       const data = await res.json();
       if (data?.ok) {
-        setDocs(data.docs || []);
+        setBooks(data.books || []);
       } else {
         setMessage(data?.message || "加载失败");
       }
@@ -164,23 +188,17 @@ function DocumentManager({ onClose }) {
     }
   }
 
-  async function openDoc(docId) {
+  async function fetchChapters(bookId) {
     setLoading(true);
     setMessage("");
     try {
-      const metaRes = await fetch(`${API}/api/doc/${docId}`);
-      const meta = await metaRes.json();
-      if (!meta?.ok || !meta?.doc) throw new Error(meta?.message || "获取文档信息失败");
-
-      const chRes = await fetch(`${API}/api/doc/${docId}/chunks`);
-      const chData = await chRes.json();
-      if (!chData?.ok) throw new Error(chData?.message || "获取 chunk 失败");
-
-      setSelected(meta.doc);
-      setChunks(chData.chunks || []);
-      setView("doc");
-      setChunkFilter("");
-      setShowDocText(false);
+      const res = await fetch(`${API}/api/book/${bookId}/chapters`);
+      const data = await res.json();
+      if (data?.ok) {
+        setChapters(data.chapters || []);
+      } else {
+        setMessage(data?.message || "加载失败");
+      }
     } catch (e) {
       setMessage(e.message || String(e));
     } finally {
@@ -188,19 +206,84 @@ function DocumentManager({ onClose }) {
     }
   }
 
-  async function deleteDoc(docId) {
-    if (!window.confirm("确定要删除整个文档吗？此操作不可撤销，将同时删除其所有 chunks。")) return;
+  async function fetchChunks(chapterId) {
     setLoading(true);
     setMessage("");
     try {
-      const res = await fetch(`${API}/api/doc/${docId}`, { method: "DELETE" });
+      const res = await fetch(`${API}/api/chapter/${chapterId}/chunks`);
+      const data = await res.json();
+      if (data?.ok) {
+        setChunks(data.chunks || []);
+      } else {
+        setMessage(data?.message || "加载失败");
+      }
+    } catch (e) {
+      setMessage(e.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function openBook(book) {
+    setSelectedBook(book);
+    await fetchChapters(book.id);
+    setView("chapters");
+    setChapterFilter("");
+  }
+
+  async function openChapter(chapter) {
+    setSelectedChapter(chapter);
+    await fetchChunks(chapter.id);
+    setView("chunks");
+    setChunkFilter("");
+  }
+
+  async function deleteBook(bookId) {
+    const password = await promptDeletePassword();
+    if (!password) return;
+
+    setLoading(true);
+    setMessage("");
+    try {
+      const res = await fetch(`${API}/api/book/${bookId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
       const data = await res.json();
       if (!data?.ok) throw new Error(data?.message || "删除失败");
-      // 刷新列表
-      await fetchDocs();
-      if (selected?.id === docId) {
-        setSelected(null);
-        setView("list");
+      await fetchBooks();
+      if (selectedBook?.id === bookId) {
+        setSelectedBook(null);
+        setView("books");
+      }
+    } catch (e) {
+      setMessage(e.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteChapter(chapterId) {
+    const password = await promptDeletePassword();
+    if (!password) return;
+
+    setLoading(true);
+    setMessage("");
+    try {
+      const res = await fetch(`${API}/api/chapter/${chapterId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (!data?.ok) throw new Error(data?.message || "删除失败");
+      if (selectedBook) {
+        await fetchChapters(selectedBook.id);
+      }
+      if (selectedChapter?.id === chapterId) {
+        setSelectedChapter(null);
+        setView("chapters");
       }
     } catch (e) {
       setMessage(e.message || String(e));
@@ -210,25 +293,27 @@ function DocumentManager({ onClose }) {
   }
 
   async function deleteChunk(chunkId) {
-    if (!window.confirm("确定要删除该 chunk 吗？此操作不可撤销。")) return;
+    const password = await promptDeletePassword();
+    if (!password) return;
+
     setLoading(true);
     setMessage("");
     try {
-      const res = await fetch(`${API}/api/chunk/${chunkId}`, { method: "DELETE" });
+      const res = await fetch(`${API}/api/chunk/${chunkId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
       const data = await res.json();
-      if (!data?.ok) throw new Error(data?.message || "删除 chunk 失败");
-      // 前端本地更新
+      if (!data?.ok) throw new Error(data?.message || "删除失败");
       setChunks((cs) => cs.filter((c) => c.id !== chunkId));
-      setDocs((ds) =>
-        ds.map((d) =>
-          d.id === selected.id
-            ? { ...d, chunk_count: Math.max(0, (d.chunk_count || 1) - 1) }
-            : d
-        )
-      );
-      setSelected((s) =>
-        s ? { ...s, chunk_count: Math.max(0, (s.chunk_count || 1) - 1) } : s
-      );
+      if (selectedChapter) {
+        const chapterRes = await fetch(`${API}/api/chapter/${selectedChapter.id}`);
+        const chapterData = await chapterRes.json();
+        if (chapterData?.ok) {
+          setSelectedChapter(chapterData.chapter);
+        }
+      }
     } catch (e) {
       setMessage(e.message || String(e));
     } finally {
@@ -236,17 +321,210 @@ function DocumentManager({ onClose }) {
     }
   }
 
+  async function createBook(title, coverFile) {
+    setLoading(true);
+    setMessage("");
+    try {
+      const formData = new FormData();
+      formData.append("title", title);
+      if (coverFile) {
+        formData.append("cover", coverFile);
+      }
+
+      const res = await fetch(`${API}/api/books`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!data?.ok) throw new Error(data?.message || "创建失败");
+      await fetchBooks();
+      setShowNewBookModal(false);
+    } catch (e) {
+      setMessage(e.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateBook(bookId, title, coverFile) {
+    setMessage("");
+    try {
+      const formData = new FormData();
+      formData.append("title", title);
+      if (coverFile) {
+        formData.append("cover", coverFile);
+      }
+
+      const res = await fetch(`${API}/api/book/${bookId}`, {
+        method: "PUT",
+        body: formData,
+      });
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          throw new Error(`请求失败: ${res.status} ${res.statusText}`);
+        }
+        throw new Error(errorData.message || "更新失败");
+      }
+      
+      const data = await res.json();
+      if (!data?.ok) throw new Error(data?.message || "更新失败");
+      await fetchBooks();
+      if (selectedBook?.id === bookId) {
+        setSelectedBook(data.book);
+      }
+      setShowEditBookModal(false);
+    } catch (e) {
+      console.error("Update book error:", e);
+      setMessage(e.message || String(e));
+    }
+  }
+
+  async function createChapter(bookId, title) {
+    setLoading(true);
+    setMessage("");
+    try {
+      const res = await fetch(`${API}/api/chapters`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ book_id: bookId, title }),
+      });
+      const data = await res.json();
+      if (!data?.ok) throw new Error(data?.message || "创建失败");
+      await fetchChapters(bookId);
+    } catch (e) {
+      setMessage(e.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateChapter(chapterId, title, orderIndex) {
+    setLoading(true);
+    setMessage("");
+    try {
+      const res = await fetch(`${API}/api/chapter/${chapterId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, order_index: orderIndex }),
+      });
+      const data = await res.json();
+      if (!data?.ok) throw new Error(data?.message || "更新失败");
+      if (selectedBook) {
+        await fetchChapters(selectedBook.id);
+      }
+      setEditingChapter(null);
+    } catch (e) {
+      setMessage(e.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleChapterUpload(chapterId, file) {
+    if (!file) return;
+    setChapterUploading(true);
+    setChapterUploadMsg(`正在上传 ${file.name} ...`);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("chapter_id", chapterId);
+      const resp = await fetch(`${API}/api/ingest`, {
+        method: "POST",
+        body: formData,
+      });
+      const text = await resp.text();
+      let data = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("服务器返回格式异常");
+      }
+      if (resp.ok && data.ok) {
+        setChapterUploadMsg(`✅ 已导入 ${data.filename}，分块数 ${data.totalChunks}`);
+        setTimeout(() => {
+          setChapterUploadMsg("");
+        }, 3000);
+      } else {
+        setChapterUploadMsg(`❌ 失败: ${data.message || "未知错误"}`);
+      }
+    } catch (err) {
+      setChapterUploadMsg(`❌ 错误: ${err.message}`);
+    } finally {
+      setChapterUploading(false);
+      if (selectedBook) {
+        await fetchChapters(selectedBook.id);
+      }
+    }
+  }
+
+  async function reorderChapters(sourceIndex, destinationIndex) {
+    if (sourceIndex === destinationIndex) return;
+    
+    const newChapters = [...chapters];
+    const [removed] = newChapters.splice(sourceIndex, 1);
+    newChapters.splice(destinationIndex, 0, removed);
+    
+    // 更新所有章节的order_index（不设置loading，避免UI卡顿）
+    try {
+      const updatePromises = newChapters.map(async (chapter, index) => {
+        const res = await fetch(`${API}/api/chapter/${chapter.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: chapter.title, order_index: index }),
+        });
+        
+        if (!res.ok) {
+          const errorText = await res.text();
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            throw new Error(`请求失败: ${res.status} ${res.statusText}`);
+          }
+          throw new Error(errorData.message || "更新章节失败");
+        }
+        
+        const data = await res.json();
+        if (!data?.ok) {
+          throw new Error(data?.message || "更新章节失败");
+        }
+        return data;
+      });
+      await Promise.all(updatePromises);
+      
+      // 刷新章节列表
+      if (selectedBook) {
+        await fetchChapters(selectedBook.id);
+      }
+    } catch (e) {
+      console.error("Reorder chapters error:", e);
+      setMessage(e.message || String(e));
+    }
+  }
+
   useEffect(() => {
-    fetchDocs();
+    fetchBooks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filteredDocs = useMemo(() => {
-    const q = docFilter.trim().toLowerCase();
+  const filteredBooks = useMemo(() => {
+    const q = bookFilter.trim().toLowerCase();
     return !q
-      ? docs
-      : docs.filter((d) => (d.filename || "").toLowerCase().includes(q));
-  }, [docFilter, docs]);
+      ? books
+      : books.filter((b) => (b.title || "").toLowerCase().includes(q));
+  }, [bookFilter, books]);
+
+  const filteredChapters = useMemo(() => {
+    const q = chapterFilter.trim().toLowerCase();
+    return !q
+      ? chapters
+      : chapters.filter((c) => (c.title || "").toLowerCase().includes(q));
+  }, [chapterFilter, chapters]);
 
   const filteredChunks = useMemo(() => {
     const q = chunkFilter.trim().toLowerCase();
@@ -255,200 +533,869 @@ function DocumentManager({ onClose }) {
       : chunks.filter((c) => (c.content || "").toLowerCase().includes(q));
   }, [chunkFilter, chunks]);
 
+  // 删除密码验证处理
+  function handleDeletePasswordConfirm() {
+    if (!deletePassword) {
+      setMessage("请输入密码");
+      return;
+    }
+    setShowDeletePasswordModal(false);
+    if (pendingDeleteAction) {
+      const resolve = pendingDeleteAction;
+      setPendingDeleteAction(null);
+      resolve(deletePassword);
+      setDeletePassword("");
+    }
+  }
+
+  function handleDeletePasswordCancel() {
+    setShowDeletePasswordModal(false);
+    if (pendingDeleteAction) {
+      const resolve = pendingDeleteAction;
+      setPendingDeleteAction(null);
+      resolve(null);
+    }
+    setDeletePassword("");
+  }
+
+  function getCoverUrl(coverPath) {
+    if (!coverPath) return null; // 返回null，使用CSS占位符
+    if (coverPath.startsWith("http")) return coverPath;
+    return `${API}${coverPath}`;
+  }
+
   return (
-    <div
-      className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
-    >
-      <motion.div
-        initial={{ opacity: 0, y: 12, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="w-full max-w-6xl bg-white rounded-2xl shadow-2xl border overflow-hidden flex flex-col"
+    <>
+      <div
+        className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
       >
-        {/* 顶部条 */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b bg-gradient-to-r from-slate-50 to-white">
-          <div className="flex items-center gap-3">
-            {view === "doc" && (
-              <button
-                onClick={() => setView("list")}
-                className="p-2 rounded-md hover:bg-slate-100"
-                title="返回"
-                aria-label="返回"
-              >
-                <ChevronLeft size={18} />
-              </button>
-            )}
-            <div className="flex items-center gap-2">
-              <BookOpen size={18} className="text-indigo-600" />
-              <span className="font-semibold">
-                {view === "list" ? "文档管理" : (selected?.filename || "文档详情")}
-              </span>
-              {view === "doc" && (
-                <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                  {selected?.chunk_count || 0} chunks
-                </span>
+        <motion.div
+          initial={{ opacity: 0, y: 12, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          className="w-full max-w-6xl bg-white rounded-2xl shadow-2xl border overflow-hidden flex flex-col"
+        >
+          {/* 顶部条 */}
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b bg-gradient-to-r from-slate-50 to-white">
+            <div className="flex items-center gap-3">
+              {(view === "chapters" || view === "chunks") && (
+                <button
+                  onClick={() => {
+                    if (view === "chunks") {
+                      setView("chapters");
+                      setSelectedChapter(null);
+                    } else {
+                      setView("books");
+                      setSelectedBook(null);
+                    }
+                  }}
+                  className="p-2 rounded-md hover:bg-slate-100"
+                  title="返回"
+                  aria-label="返回"
+                >
+                  <ChevronLeft size={18} />
+                </button>
               )}
+              <div className="flex items-center gap-2">
+                <BookOpen size={18} className="text-indigo-600" />
+                <span className="font-semibold">
+                  {view === "books" && "文档管理"}
+                  {view === "chapters" && selectedBook && `《${selectedBook.title}》章节管理`}
+                  {view === "chunks" && selectedChapter && `《${selectedChapter.title}》分块管理`}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {view === "books" && (
+                <button
+                  onClick={() => setShowNewBookModal(true)}
+                  className="px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-sm"
+                >
+                  新建书籍
+                </button>
+              )}
+              {view === "chapters" && selectedBook && (
+                <button
+                  onClick={() => setShowEditBookModal(true)}
+                  className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm"
+                >
+                  编辑书籍
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="p-2 rounded-md hover:bg-slate-100"
+                aria-label="关闭"
+                title="关闭"
+              >
+                <X size={18} />
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {view === "doc" && selected && (
-              <button
-                onClick={() => deleteDoc(selected.id)}
-                className="px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700 text-sm"
-              >
-                删除文档
-              </button>
+
+          {/* 内容区 */}
+          <div className="p-4 sm:p-6 overflow-y-auto max-h-[85vh]">
+            {message && (
+              <div className="mb-3 text-sm text-red-600">{message}</div>
             )}
-            <button
-              onClick={onClose}
-              className="p-2 rounded-md hover:bg-slate-100"
-              aria-label="关闭"
-              title="关闭"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        </div>
 
-        {/* 内容区 */}
-        <div className="p-4 sm:p-6 overflow-y-auto max-h-[85vh]">
-          {message && (
-            <div className="mb-3 text-sm text-red-600">{message}</div>
-          )}
-
-          {view === "list" && (
-            <>
-              {/* Summary + 搜索 */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                <div className="text-sm text-slate-600">
-                  共 <b>{docs.length}</b> 个文档，<b>{totalChunks}</b> 个 chunks
+            {/* 书籍列表视图 */}
+            {view === "books" && (
+              <>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                  <div className="text-sm text-slate-600">
+                    共 <b>{books.length}</b> 本书籍，<b>{totalChunks}</b> 个分块
+                  </div>
+                  <div className="relative">
+                    <Search size={16} className="absolute left-2 top-2.5 text-slate-400" />
+                    <input
+                      value={bookFilter}
+                      onChange={(e) => setBookFilter(e.target.value)}
+                      placeholder="搜索书名..."
+                      className="pl-8 pr-3 py-2 border rounded-md text-sm w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-inset"
+                    />
+                  </div>
                 </div>
-                <div className="relative">
-                  <Search size={16} className="absolute left-2 top-2.5 text-slate-400" />
-                  <input
-                    value={docFilter}
-                    onChange={(e) => setDocFilter(e.target.value)}
-                    placeholder="搜索文件名..."
-                    className="pl-8 pr-3 py-2 border rounded-md text-sm w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-inset"
-                  />
-                </div>
-              </div>
 
-              {/* 列表 */}
-              {loading ? (
-                <div className="py-6"><AnimatedLoader label="正在加载文档…" size={120} /></div>
-              ) : filteredDocs.length === 0 ? (
-                <div className="text-sm text-slate-500">暂无文档或未匹配到搜索结果。</div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredDocs.map((d) => (
-                    <div
-                      key={d.id}
-                      className="rounded-xl border bg-white overflow-hidden hover:shadow-md transition"
-                    >
-                      <div className="px-4 py-3 border-b bg-gradient-to-r from-indigo-50 to-white">
-                        <div className="font-medium truncate" title={d.filename}>{d.filename}</div>
-                        <div className="mt-1 text-xs text-slate-500">{formatDate(d.created_at)}</div>
+                {loading ? (
+                  <div className="py-6"><AnimatedLoader label="正在加载书籍…" size={120} /></div>
+                ) : filteredBooks.length === 0 ? (
+                  <div className="text-sm text-slate-500">暂无书籍或未匹配到搜索结果。</div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredBooks.map((b) => (
+                      <div
+                        key={b.id}
+                        className="rounded-xl border bg-white overflow-hidden hover:shadow-md transition cursor-pointer"
+                        onClick={() => openBook(b)}
+                      >
+                        <div className="aspect-[3/4] bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center overflow-hidden relative">
+                          {getCoverUrl(b.cover_path) ? (
+                            <img
+                              src={getCoverUrl(b.cover_path)}
+                              alt={b.title}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.style.display = "none";
+                              }}
+                            />
+                          ) : null}
+                          {!getCoverUrl(b.cover_path) && (
+                            <div className="w-full h-full flex items-center justify-center text-indigo-600">
+                              <BookOpen size={48} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-4">
+                          <div className="font-medium truncate mb-2" title={b.title}>{b.title}</div>
+                          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+                            <span>{b.chapter_count || 0} 章节</span>
+                            <span>{b.chunk_count || 0} 分块</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openBook(b);
+                              }}
+                              className="flex-1 px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-sm"
+                            >
+                              查看
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteBook(b.id);
+                              }}
+                              className="px-3 py-1.5 rounded-md border text-sm hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+                            >
+                              删除
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      <div className="p-4 flex items-center justify-between">
-                        <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
-                          {d.chunk_count} chunks
-                        </span>
-                        <div className="flex items-center gap-2">
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* 章节列表视图 */}
+            {view === "chapters" && selectedBook && (
+              <>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                  <div className="text-sm text-slate-600">
+                    共 <b>{chapters.length}</b> 个章节
+                  </div>
+                  <div className="relative">
+                    <Search size={16} className="absolute left-2 top-2.5 text-slate-400" />
+                    <input
+                      value={chapterFilter}
+                      onChange={(e) => setChapterFilter(e.target.value)}
+                      placeholder="搜索章节..."
+                      className="pl-8 pr-3 py-2 border rounded-md text-sm w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-inset"
+                    />
+                  </div>
+                </div>
+
+                {/* 上传新章节 */}
+                <div
+                  className={`mb-4 p-6 border-2 border-dashed rounded-xl transition-colors cursor-pointer ${
+                    chapterDragActive
+                      ? "border-indigo-500 bg-indigo-50"
+                      : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50"
+                  }`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.dataTransfer.types.includes('Files')) {
+                      setChapterDragActive(true);
+                    }
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = e.clientX;
+                    const y = e.clientY;
+                    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+                      setChapterDragActive(false);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setChapterDragActive(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) {
+                      setPendingChapterFile(file);
+                      setShowChapterTitleModal(true);
+                    }
+                  }}
+                >
+                  <label className="flex flex-col items-center cursor-pointer">
+                    <Upload size={24} className={`mb-2 ${chapterDragActive ? "text-indigo-600" : "text-indigo-500"}`} />
+                    <span className={`text-sm font-medium ${chapterDragActive ? "text-indigo-600" : "text-slate-600"}`}>
+                      {chapterDragActive ? "松开以上传章节" : "上传新章节"}
+                    </span>
+                    <p className="text-xs text-slate-500 mt-1">
+                      拖拽文件到此处，或点击选择文件
+                    </p>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.txt"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setPendingChapterFile(file);
+                          setShowChapterTitleModal(true);
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {chapterUploading && (
+                    <div className="mt-3 text-xs text-slate-500 text-center">{chapterUploadMsg}</div>
+                  )}
+                  {!chapterUploading && chapterUploadMsg && (
+                    <div className="mt-3 text-xs text-center">{chapterUploadMsg}</div>
+                  )}
+                </div>
+
+                {loading ? (
+                  <div className="py-6"><AnimatedLoader label="正在加载章节…" size={120} /></div>
+                ) : filteredChapters.length === 0 ? (
+                  <div className="text-sm text-slate-500">暂无章节或未匹配到搜索结果。</div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {filteredChapters.map((c, idx) => {
+                      const originalIndex = chapters.findIndex(ch => ch.id === c.id);
+                      return (
+                        <div
+                          key={c.id}
+                          draggable
+                          onDragStart={(e) => {
+                            setDraggedChapterIndex(originalIndex);
+                            e.dataTransfer.effectAllowed = "move";
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = "move";
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggedChapterIndex !== null && draggedChapterIndex !== originalIndex) {
+                              reorderChapters(draggedChapterIndex, originalIndex);
+                            }
+                            setDraggedChapterIndex(null);
+                          }}
+                          onDragEnd={() => {
+                            setDraggedChapterIndex(null);
+                          }}
+                          className={`border rounded-lg p-4 bg-white hover:shadow-sm transition cursor-move ${
+                            draggedChapterIndex === originalIndex ? "opacity-50" : ""
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1">
+                              {editingChapter?.id === c.id ? (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    defaultValue={c.title}
+                                    className="flex-1 px-2 py-1 border rounded text-sm"
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        updateChapter(c.id, e.target.value, c.order_index);
+                                      } else if (e.key === "Escape") {
+                                        setEditingChapter(null);
+                                      }
+                                    }}
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={() => setEditingChapter(null)}
+                                    className="px-2 py-1 text-xs border rounded"
+                                  >
+                                    取消
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <div className="text-slate-400 cursor-move" title="拖拽排序">
+                                    ⋮⋮
+                                  </div>
+                                  <div
+                                    className="font-medium cursor-pointer hover:text-indigo-600 flex-1"
+                                    onClick={() => openChapter(c)}
+                                  >
+                                    {idx + 1}. {c.title}
+                                  </div>
+                                </div>
+                              )}
+                              <div className="text-xs text-slate-500 mt-1 ml-6">
+                                {c.chunk_count || 0} 个分块
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setEditingChapter(c)}
+                                className="px-2 py-1 text-xs border rounded hover:bg-slate-50"
+                              >
+                                重命名
+                              </button>
+                              <button
+                                onClick={() => openChapter(c)}
+                                className="px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                              >
+                                查看
+                              </button>
+                              <button
+                                onClick={() => deleteChapter(c.id)}
+                                className="px-2 py-1 text-xs border rounded hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+                              >
+                                删除
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* 分块列表视图 */}
+            {view === "chunks" && selectedChapter && (
+              <>
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="text-sm text-slate-600">
+                    分块（{filteredChunks.length}/{chunks.length}）
+                  </div>
+                  <div className="relative">
+                    <Search size={16} className="absolute left-2 top-2.5 text-slate-400" />
+                    <input
+                      value={chunkFilter}
+                      onChange={(e) => setChunkFilter(e.target.value)}
+                      placeholder="在分块内搜索..."
+                      className="pl-8 pr-3 py-2 border rounded-md text-sm w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-inset"
+                    />
+                  </div>
+                </div>
+
+                {loading ? (
+                  <div className="py-6"><AnimatedLoader label="正在加载分块…" size={120} /></div>
+                ) : filteredChunks.length === 0 ? (
+                  <div className="text-sm text-slate-500">暂无分块或未匹配到搜索结果。</div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {filteredChunks.map((c, i) => (
+                      <div key={c.id} className="border rounded-lg p-3 bg-white hover:shadow-sm transition">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="text-xs text-slate-500">
+                            #{i + 1} · {c.created_at ? formatDate(c.created_at) : ""}
+                          </div>
                           <button
-                            onClick={() => openDoc(d.id)}
-                            className="px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-sm"
-                          >
-                            查看
-                          </button>
-                          <button
-                            onClick={() => deleteDoc(d.id)}
-                            className="px-3 py-1.5 rounded-md border text-sm hover:bg-slate-50"
+                            onClick={() => deleteChunk(c.id)}
+                            className="text-xs px-2 py-1 rounded-md border hover:bg-red-50 hover:border-red-300 hover:text-red-600"
                           >
                             删除
                           </button>
                         </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          {view === "doc" && selected && (
-            <>
-              {/* 文档信息 */}
-              <div className="mb-4">
-                <div className="text-sm text-slate-600">
-                  文档名：<b className="text-slate-800">{selected.filename}</b>
-                </div>
-                <div className="text-xs text-slate-500 mt-1">
-                  创建时间：{formatDate(selected.created_at)} · 共 {selected.chunk_count} 个 chunks
-                </div>
-
-                {/* 文本预览（可折叠） */}
-                <div className="mt-3">
-                  <button
-                    onClick={() => setShowDocText((v) => !v)}
-                    className="text-xs px-2 py-1 rounded-md border hover:bg-slate-50"
-                  >
-                    {showDocText ? "收起全文" : "展开查看全文"}
-                  </button>
-                  {showDocText && (
-                    <div className="mt-2 p-3 border rounded-md bg-slate-50 max-h-64 overflow-auto text-xs text-slate-700 whitespace-pre-wrap">
-                      {selected.text || "（无文本）"}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* chunk 搜索 */}
-              <div className="flex items-center justify-between gap-3 mb-3">
-                <div className="text-sm text-slate-600">
-                  chunks（{filteredChunks.length}/{chunks.length}）
-                </div>
-                <div className="relative">
-                  <Search size={16} className="absolute left-2 top-2.5 text-slate-400" />
-                  <input
-                    value={chunkFilter}
-                    onChange={(e) => setChunkFilter(e.target.value)}
-                    placeholder="在 chunks 内搜索..."
-                    className="pl-8 pr-3 py-2 border rounded-md text-sm w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-inset"
-                  />
-                </div>
-              </div>
-
-              {/* chunk 列表 */}
-              {loading ? (
-                <div className="py-6"><AnimatedLoader label="正在加载…" size={120} /></div>
-              ) : filteredChunks.length === 0 ? (
-                <div className="text-sm text-slate-500">暂无 chunk 或未匹配到搜索结果。</div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {filteredChunks.map((c, i) => (
-                    <div key={c.id} className="border rounded-lg p-3 bg-white hover:shadow-sm transition">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="text-xs text-slate-500">
-                          #{i + 1} · {c.created_at ? formatDate(c.created_at) : ""}
+                        <div className="mt-2 text-sm text-slate-800 whitespace-pre-wrap leading-6">
+                          {c.content}
                         </div>
-                        <button
-                          onClick={() => deleteChunk(c.id)}
-                          className="text-xs px-2 py-1 rounded-md border hover:bg-red-50 hover:border-red-300 hover:text-red-600"
-                        >
-                          删除 chunk
-                        </button>
                       </div>
-                      <div className="mt-2 text-sm text-slate-800 whitespace-pre-wrap leading-6">
-                        {c.content}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* 新建书籍模态框 */}
+      {showNewBookModal && (
+        <NewBookModal
+          onClose={() => setShowNewBookModal(false)}
+          onSubmit={createBook}
+        />
+      )}
+
+      {/* 编辑书籍模态框 */}
+      {showEditBookModal && selectedBook && (
+        <EditBookModal
+          book={selectedBook}
+          onClose={() => setShowEditBookModal(false)}
+          onSubmit={updateBook}
+        />
+      )}
+
+      {/* 删除密码验证模态框 */}
+      {showDeletePasswordModal && (
+        <DeletePasswordModal
+          onClose={handleDeletePasswordCancel}
+          password={deletePassword}
+          onPasswordChange={setDeletePassword}
+          onConfirm={handleDeletePasswordConfirm}
+        />
+      )}
+
+      {/* 章节标题输入模态框 */}
+      {showChapterTitleModal && (
+        <ChapterTitleModal
+          defaultTitle={pendingChapterFile?.name?.replace(/\.[^/.]+$/, "") || ""}
+          onClose={() => {
+            setShowChapterTitleModal(false);
+            setPendingChapterFile(null);
+          }}
+          onSubmit={async (title) => {
+            if (!title.trim() || !pendingChapterFile) return;
+            // 先关闭模态框
+            const file = pendingChapterFile;
+            setShowChapterTitleModal(false);
+            setPendingChapterFile(null);
+            
+            try {
+              const res = await fetch(`${API}/api/chapters`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ book_id: selectedBook.id, title: title.trim() }),
+              });
+              const data = await res.json();
+              if (data?.ok && data.chapter) {
+                // 立即开始上传，不等待
+                handleChapterUpload(data.chapter.id, file);
+              } else {
+                setMessage(data?.message || "创建章节失败");
+              }
+            } catch (err) {
+              setMessage(err.message || "创建章节失败");
+            }
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// 章节标题输入模态框
+function ChapterTitleModal({ defaultTitle, onClose, onSubmit }) {
+  const [title, setTitle] = useState(defaultTitle);
+
+  function handleSubmit() {
+    if (!title.trim()) {
+      alert("请输入章节标题");
+      return;
+    }
+    onSubmit(title.trim());
+  }
+
+  return (
+    <div className="fixed inset-0 z-[101] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-xl shadow-xl border p-6 max-w-md w-full"
+      >
+        <h3 className="text-lg font-semibold mb-4">请输入章节标题</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">章节标题 *</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="请输入章节标题"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleSubmit();
+                } else if (e.key === "Escape") {
+                  onClose();
+                }
+              }}
+              autoFocus
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-6">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-md hover:bg-slate-50"
+          >
+            取消
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            确定
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// 新建书籍模态框
+function NewBookModal({ onClose, onSubmit }) {
+  const [title, setTitle] = useState("");
+  const [coverFile, setCoverFile] = useState(null);
+  const [coverPreview, setCoverPreview] = useState(null);
+  const [dragActive, setDragActive] = useState(false);
+
+  function handleFileSelect(file) {
+    if (file && file.type.startsWith("image/")) {
+      setCoverFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => setCoverPreview(e.target.result);
+      reader.readAsDataURL(file);
+    }
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes('Files')) {
+      setDragActive(true);
+    }
+  }
+
+  function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setDragActive(false);
+    }
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  }
+
+  function handleSubmit() {
+    if (!title.trim()) {
+      alert("请输入书名");
+      return;
+    }
+    onSubmit(title.trim(), coverFile);
+  }
+
+  return (
+    <div className="fixed inset-0 z-[101] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-xl shadow-xl border p-6 max-w-md w-full"
+      >
+        <h3 className="text-lg font-semibold mb-4">新建书籍</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">书名 *</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="请输入书名"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">封面（可选）</label>
+            <label
+              className={`flex flex-col items-center justify-center gap-2 px-4 py-6 border-2 border-dashed rounded-xl cursor-pointer transition ${
+                dragActive
+                  ? "border-indigo-500 bg-indigo-50"
+                  : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50"
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <Upload size={20} className="text-indigo-600" />
+              <span className="text-sm text-slate-600">
+                {dragActive ? "松开以上传封面" : "拖拽图片到此处，或点击选择"}
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleFileSelect(e.target.files?.[0])}
+                className="hidden"
+              />
+            </label>
+            {coverPreview && (
+              <div className="mt-3 relative inline-block">
+                <img src={coverPreview} alt="预览" className="max-h-40 rounded border" />
+                <button
+                  onClick={() => {
+                    setCoverFile(null);
+                    setCoverPreview(null);
+                  }}
+                  className="absolute top-2 right-2 p-1 rounded-full bg-white border shadow hover:bg-slate-100"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-6">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-md hover:bg-slate-50"
+          >
+            取消
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            创建
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// 编辑书籍模态框
+function EditBookModal({ book, onClose, onSubmit }) {
+  const [title, setTitle] = useState(book.title);
+  const [coverFile, setCoverFile] = useState(null);
+  const [coverPreview, setCoverPreview] = useState(null);
+  const [dragActive, setDragActive] = useState(false);
+  const API = import.meta.env.VITE_API_BASE;
+
+  function handleFileSelect(file) {
+    if (file && file.type.startsWith("image/")) {
+      setCoverFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => setCoverPreview(e.target.result);
+      reader.readAsDataURL(file);
+    }
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes('Files')) {
+      setDragActive(true);
+    }
+  }
+
+  function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setDragActive(false);
+    }
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  }
+
+  async function handleSubmit() {
+    if (!title.trim()) {
+      alert("请输入书名");
+      return;
+    }
+    await onSubmit(book.id, title.trim(), coverFile);
+  }
+
+  function getCoverUrl(coverPath) {
+    if (!coverPath) return null;
+    if (coverPath.startsWith("http")) return coverPath;
+    return `${API}${coverPath}`;
+  }
+
+  return (
+    <div className="fixed inset-0 z-[101] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-xl shadow-xl border p-6 max-w-md w-full"
+      >
+        <h3 className="text-lg font-semibold mb-4">编辑书籍</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">书名 *</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md"
+              placeholder="请输入书名"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">封面（可选）</label>
+            <label
+              className={`flex flex-col items-center justify-center gap-2 px-4 py-6 border-2 border-dashed rounded-xl cursor-pointer transition ${
+                dragActive
+                  ? "border-indigo-500 bg-indigo-50"
+                  : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50"
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <Upload size={20} className="text-indigo-600" />
+              <span className="text-sm text-slate-600">
+                {dragActive ? "松开以上传封面" : "拖拽图片到此处，或点击选择"}
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleFileSelect(e.target.files?.[0])}
+                className="hidden"
+              />
+            </label>
+            {(coverPreview || book.cover_path) && (
+              <div className="mt-3 relative inline-block">
+                <img
+                  src={coverPreview || getCoverUrl(book.cover_path)}
+                  alt="预览"
+                  className="max-h-40 rounded border"
+                />
+                {coverPreview && (
+                  <button
+                    onClick={() => {
+                      setCoverFile(null);
+                      setCoverPreview(null);
+                    }}
+                    className="absolute top-2 right-2 p-1 rounded-full bg-white border shadow hover:bg-slate-100"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-6">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-md hover:bg-slate-50"
+          >
+            取消
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            保存
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// 删除密码验证模态框
+function DeletePasswordModal({ onClose, password, onPasswordChange, onConfirm }) {
+  return (
+    <div className="fixed inset-0 z-[102] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-xl shadow-xl border p-6 max-w-md w-full"
+      >
+        <h3 className="text-lg font-semibold mb-4">删除操作需要验证</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">请输入删除密码</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => onPasswordChange(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md"
+              placeholder="请输入密码"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  onConfirm();
+                }
+              }}
+              autoFocus
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-6">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-md hover:bg-slate-50"
+          >
+            取消
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+          >
+            确认删除
+          </button>
         </div>
       </motion.div>
     </div>
@@ -671,41 +1618,6 @@ function App() {
       setUploadMsg(`❌ 错误: ${err.message}`);
     } finally {
       setUploading(false);
-    }
-  }
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      if (!allowedDocTypes.includes(file.type)) {
-        setUploadMsg("❌ 仅支持上传 PDF、Word、TXT 文件");
-        return;
-      }
-      const fakeEvent = { target: { files: [file] } };
-      handleUpload(fakeEvent);
-    }
-  };
-
-  // 处理教材/题库上传区域的拖拽
-  function handleDocUploadDragOver(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.dataTransfer.types.includes('Files')) {
-      setDragActive(true);
-    }
-  }
-
-  function handleDocUploadDragLeave(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    // 只有当真正离开容器时才取消拖拽状态
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX;
-    const y = e.clientY;
-    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-      setDragActive(false);
     }
   }
 
@@ -1602,41 +2514,6 @@ h2 { font-size: 16px; margin-top: 18px; }
           </section>
         </main>
 
-        {/* 教材/题库上传区域*/}
-        <section
-          onDragOver={handleDocUploadDragOver}
-          onDragLeave={handleDocUploadDragLeave}
-          onDrop={handleDrop}
-          className={`bg-white p-3 rounded-2xl shadow-md flex flex-col items-center justify-center border-2 border-dashed transition-colors cursor-pointer ${
-            dragActive
-              ? "border-green-500 bg-green-100"
-              : "border-slate-300 hover:border-green-400 hover:bg-green-50"
-          }`}
-          aria-label="上传教材或题库"
-        >
-          <label className="w-full h-full flex flex-col items-center justify-center cursor-pointer">
-            <Upload size={20} className="text-green-600 mb-2" />
-            <span className="text-lg font-semibold text-slate-700">
-              上传教材/题库
-            </span>
-            <p className="text-xs text-slate-500 mt-1">
-              拖拽文件到此处，或点击选择文件
-            </p>
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx,.txt"
-              onChange={handleUpload}
-              className="hidden"
-            />
-          </label>
-          {uploading && (
-            <div className="mt-2 text-xs text-slate-500">{uploadMsg}</div>
-          )}
-          {!uploading && uploadMsg && (
-            <div className="mt-2 text-xs text-green-600">{uploadMsg}</div>
-          )}
-        </section>
-
         {/* 反馈 */}
         <section className="bg-white p-4 rounded-2xl shadow-md flex flex-col gap-3">
           <h3 className="text-lg font-semibold text-center">发送反馈</h3>
@@ -1687,7 +2564,40 @@ h2 { font-size: 16px; margin-top: 18px; }
       </div>
 
       {/* 文档管理：全屏弹层 */}
-      {docMgrOpen && <DocumentManager onClose={() => setDocMgrOpen(false)} />}
+      {docMgrOpen && (
+        <DocumentManager
+          onClose={() => setDocMgrOpen(false)}
+          onUploadChapter={async (file, chapterId) => {
+            setUploading(true);
+            setUploadMsg(`正在上传 ${file.name} ...`);
+            try {
+              const formData = new FormData();
+              formData.append("file", file);
+              formData.append("chapter_id", chapterId);
+              const resp = await fetch(`${import.meta.env.VITE_API_BASE}/api/ingest`, {
+                method: "POST",
+                body: formData,
+              });
+              const text = await resp.text();
+              let data = {};
+              try {
+                data = JSON.parse(text);
+              } catch {
+                throw new Error("服务器返回格式异常");
+              }
+              if (resp.ok && data.ok) {
+                setUploadMsg(`✅ 已导入 ${data.filename}，分块数 ${data.totalChunks}`);
+              } else {
+                setUploadMsg(`❌ 失败: ${data.message || "未知错误"}`);
+              }
+            } catch (err) {
+              setUploadMsg(`❌ 错误: ${err.message}`);
+            } finally {
+              setUploading(false);
+            }
+          }}
+        />
+      )}
 
       {/* 登录注册弹层 */}
       {showAuth && (

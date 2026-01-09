@@ -24,6 +24,9 @@ dist-ssr
 *.sqlite
 *.sqlite3
 
+# Upload directories
+covers/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -184,12 +184,12 @@ export async function getEmbedding(text) {
 export async function ingestFileToDB(
   filePath,
   filename,
-  opts = { chunkSize: 1000, overlap: 200, onProgress: null }
+  opts = { chunkSize: 1000, overlap: 200, onProgress: null, chapterId: null }
 ) {
   const docId = uuidv4();
   const text = await extractTextFromFile(filePath);
 
-  insertDoc(docId, filename, text || "");
+  insertDoc(docId, filename, text || "", opts.chapterId || null);
 
   const chunkSize = Number(opts.chunkSize) || 1000;
   const overlap = Number(opts.overlap) || 200;
@@ -199,7 +199,6 @@ export async function ingestFileToDB(
   for (const c of chunks) {
     if (!c.trim()) continue;
 
-    // 不要在这里固定 sleep，速率控制与退避已放到 getEmbedding 里做得更智能
     const emb = await getEmbedding(c);
 
     const chunkId = uuidv4();
