@@ -1009,6 +1009,11 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
       });
     }
 
+    // 根据是否有图片选择模型
+    // 如果有图片，使用 gemini-3-pro-preview；如果仅文字，使用 gpt-5.2
+    const hasImage = !!(imagePath || imageDataUrl);
+    const modelToUse = hasImage ? "gemini-3-pro-preview" : "gpt-5.2";
+
     // 工具定义（让模型决定是否调用 RAG）
     // Reaxys 和联网搜索不在工具列表中，它们会在 RAG 无结果时自动调用
     const tools = [
@@ -1150,7 +1155,7 @@ ${contextText}
       }
 
       const second = await postChatCompletion({
-        model: "gemini-3-pro-preview",
+        model: modelToUse,
         temperature: 0.2,
         messages: [...baseMessages, { role: "user", content: secondUserContent }],
       });
@@ -1237,7 +1242,7 @@ ${contextText}
             // 所有搜索都没结果或不相关，再次调用模型直接回答
             console.log("All searches failed or not relevant, asking model to answer directly");
             const directAnswer = await postChatCompletion({
-              model: "gemini-3-pro-preview",
+              model: modelToUse,
               temperature: 0.2,
               messages: [...baseMessages, { role: "user", content: userContent }],
             });
