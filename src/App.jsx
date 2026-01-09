@@ -43,7 +43,7 @@ import "katex/contrib/mhchem";
 
 // 界面参数
 const MAX_HISTORY = 50;
-const PANEL_H = "h-[115vh] sm:h-[110vh] md:h-[95vh]"; // 左侧卡片固定高度
+const PANEL_H = "h-[115vh] sm:h-[110vh] md:h-[96vh]"; // 左侧卡片固定高度
 
 function formatDate(ts) {
   try {
@@ -73,27 +73,31 @@ function escapeHtml(str = "") {
 function AnimatedLoader({ label = "系统正在检索答案…", size = 160, imgSrc = "/anim/ai-loader.gif" }) {
   const [useImg, setUseImg] = React.useState(true);
   return (
-    <div className="flex flex-col items-center gap-3 py-4 select-none">
+    <div className="flex flex-col items-center gap-4 py-6 select-none">
       {useImg ? (
-        <img
-          src={imgSrc}
-          alt="AI 正在思考"
-          width={size}
-          height={size}
-          className="oc-loader rounded-xl ring-1 ring-slate-200 shadow-sm object-contain pointer-events-none"
-          onError={() => setUseImg(false)}
-        />
+        <div className="relative">
+          <img
+            src={imgSrc}
+            alt="AI 正在思考"
+            width={size}
+            height={size}
+            className="oc-loader rounded-xl ring-2 ring-indigo-200 shadow-lg object-contain pointer-events-none pulse-glow"
+            onError={() => setUseImg(false)}
+          />
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-indigo-400/20 to-purple-400/20 animate-pulse"></div>
+        </div>
       ) : (
-        <div className="oc-loader" role="img" aria-label="AI 正在思考的动画">
-          <svg viewBox="0 0 120 120" aria-hidden="true">
+        <div className="oc-loader relative" role="img" aria-label="AI 正在思考的动画">
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-100/50 to-purple-100/50 rounded-full blur-xl"></div>
+          <svg viewBox="0 0 120 120" aria-hidden="true" className="relative z-10">
             <defs>
               <linearGradient id="ocGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%"   stopColor="#10b981" />
-                <stop offset="55%"  stopColor="#60a5fa" />
-                <stop offset="100%" stopColor="#a78bfa" />
+                <stop offset="0%"   stopColor="#6366f1" />
+                <stop offset="50%"  stopColor="#8b5cf6" />
+                <stop offset="100%" stopColor="#ec4899" />
               </linearGradient>
               <filter id="ocGlow" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="1.8" result="blur"/>
+                <feGaussianBlur stdDeviation="2" result="blur"/>
                 <feMerge>
                   <feMergeNode in="blur"/>
                   <feMergeNode in="SourceGraphic"/>
@@ -112,19 +116,24 @@ function AnimatedLoader({ label = "系统正在检索答案…", size = 160, img
                 points="60,28 84,42 84,72 60,86 36,72 36,42"
                 fill="none"
                 stroke="url(#ocGrad)"
-                strokeWidth="2"
+                strokeWidth="2.5"
               />
-              <circle className="oc-dot d1" cx="60" cy="28" r="2" />
-              <circle className="oc-dot d2" cx="84" cy="42" r="2" />
-              <circle className="oc-dot d3" cx="84" cy="72" r="2" />
-              <circle className="oc-dot d4" cx="60" cy="86" r="2" />
-              <circle className="oc-dot d5" cx="36" cy="72" r="2" />
-              <circle className="oc-dot d6" cx="36" cy="42" r="2" />
+              <circle className="oc-dot d1" cx="60" cy="28" r="2.5" />
+              <circle className="oc-dot d2" cx="84" cy="42" r="2.5" />
+              <circle className="oc-dot d3" cx="84" cy="72" r="2.5" />
+              <circle className="oc-dot d4" cx="60" cy="86" r="2.5" />
+              <circle className="oc-dot d5" cx="36" cy="72" r="2.5" />
+              <circle className="oc-dot d6" cx="36" cy="42" r="2.5" />
             </g>
           </svg>
         </div>
       )}
-      <div className="text-sm text-slate-500">{label}</div>
+      <div className="text-sm text-slate-600 font-medium flex items-center gap-2">
+        <span className="loading-dots">
+          <span></span><span></span><span></span>
+        </span>
+        <span>{label}</span>
+      </div>
     </div>
   );
 }
@@ -571,13 +580,9 @@ function DocumentManager({ onClose, onUploadChapter }) {
         role="dialog"
         aria-modal="true"
       >
-        <motion.div
-          initial={{ opacity: 0, y: 12, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          className="w-full max-w-6xl bg-white rounded-2xl shadow-2xl border overflow-hidden flex flex-col"
-        >
+        <div className="w-full max-w-6xl bg-white rounded-2xl shadow-2xl border-2 border-indigo-100 overflow-hidden flex flex-col">
           {/* 顶部条 */}
-          <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b bg-gradient-to-r from-slate-50 to-white">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b-2 border-indigo-100 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50">
             <div className="flex items-center gap-3">
               {(view === "chapters" || view === "chunks") && (
                 <button
@@ -661,16 +666,19 @@ function DocumentManager({ onClose, onUploadChapter }) {
                 {loading ? (
                   <div className="py-6"><AnimatedLoader label="正在加载书籍…" size={120} /></div>
                 ) : filteredBooks.length === 0 ? (
-                  <div className="text-sm text-slate-500">暂无书籍或未匹配到搜索结果。</div>
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <div className="text-5xl mb-3">📚</div>
+                    <div className="text-sm text-slate-600 font-medium">暂无书籍或未匹配到搜索结果</div>
+                  </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredBooks.map((b) => (
                       <div
                         key={b.id}
-                        className="rounded-xl border bg-white overflow-hidden hover:shadow-md transition cursor-pointer"
+                        className="rounded-xl border-2 border-indigo-100 bg-white overflow-hidden hover:shadow-xl transition-shadow cursor-pointer hover:border-indigo-300"
                         onClick={() => openBook(b)}
                       >
-                        <div className="aspect-[3/4] bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center overflow-hidden relative">
+                        <div className="aspect-[3/4] bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 flex items-center justify-center overflow-hidden relative">
                           {getCoverUrl(b.cover_path) ? (
                             <img
                               src={getCoverUrl(b.cover_path)}
@@ -699,7 +707,7 @@ function DocumentManager({ onClose, onUploadChapter }) {
                                 e.stopPropagation();
                                 openBook(b);
                               }}
-                              className="flex-1 px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-sm"
+                              className="flex-1 px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-sm btn-animated shadow-md hover:shadow-lg transition-all"
                             >
                               查看
                             </button>
@@ -708,7 +716,7 @@ function DocumentManager({ onClose, onUploadChapter }) {
                                 e.stopPropagation();
                                 deleteBook(b.id);
                               }}
-                              className="px-3 py-1.5 rounded-md border text-sm hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+                              className="px-3 py-1.5 rounded-md border-2 border-red-200 text-sm hover:bg-red-50 hover:border-red-400 hover:text-red-600 transition-all"
                             >
                               删除
                             </button>
@@ -807,7 +815,10 @@ function DocumentManager({ onClose, onUploadChapter }) {
                 {loading ? (
                   <div className="py-6"><AnimatedLoader label="正在加载章节…" size={120} /></div>
                 ) : filteredChapters.length === 0 ? (
-                  <div className="text-sm text-slate-500">暂无章节或未匹配到搜索结果。</div>
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <div className="text-5xl mb-3">📖</div>
+                    <div className="text-sm text-slate-600 font-medium">暂无章节或未匹配到搜索结果</div>
+                  </div>
                 ) : (
                   <div className="flex flex-col gap-3">
                     {filteredChapters.map((c, idx) => {
@@ -834,7 +845,7 @@ function DocumentManager({ onClose, onUploadChapter }) {
                           onDragEnd={() => {
                             setDraggedChapterIndex(null);
                           }}
-                          className={`border rounded-lg p-4 bg-white hover:shadow-sm transition cursor-move ${
+                          className={`border rounded-lg p-4 bg-white hover:shadow-sm transition-shadow cursor-move ${
                             draggedChapterIndex === originalIndex ? "opacity-50" : ""
                           }`}
                         >
@@ -929,7 +940,10 @@ function DocumentManager({ onClose, onUploadChapter }) {
                 {loading ? (
                   <div className="py-6"><AnimatedLoader label="正在加载分块…" size={120} /></div>
                 ) : filteredChunks.length === 0 ? (
-                  <div className="text-sm text-slate-500">暂无分块或未匹配到搜索结果。</div>
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <div className="text-5xl mb-3">📄</div>
+                    <div className="text-sm text-slate-600 font-medium">暂无分块或未匹配到搜索结果</div>
+                  </div>
                 ) : (
                   <div className="flex flex-col gap-3">
                     {filteredChunks.map((c, i) => (
@@ -955,7 +969,7 @@ function DocumentManager({ onClose, onUploadChapter }) {
               </>
             )}
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* 新建书籍模态框 */}
@@ -1038,11 +1052,14 @@ function ChapterTitleModal({ defaultTitle, onClose, onSubmit }) {
   return (
     <div className="fixed inset-0 z-[101] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-xl shadow-xl border p-6 max-w-md w-full"
+        initial={{ opacity: 0, y: 12, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        className="bg-white/95 backdrop-blur-md rounded-xl shadow-2xl border-2 border-purple-100 p-6 max-w-md w-full"
       >
-        <h3 className="text-lg font-semibold mb-4">请输入章节标题</h3>
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-purple-600">
+          <span>📝</span>
+          <span>请输入章节标题</span>
+        </h3>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">章节标题 *</label>
@@ -1138,11 +1155,14 @@ function NewBookModal({ onClose, onSubmit }) {
   return (
     <div className="fixed inset-0 z-[101] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-xl shadow-xl border p-6 max-w-md w-full"
+        initial={{ opacity: 0, y: 12, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        className="bg-white/95 backdrop-blur-md rounded-xl shadow-2xl border-2 border-indigo-100 p-6 max-w-md w-full"
       >
-        <h3 className="text-lg font-semibold mb-4">新建书籍</h3>
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-indigo-600">
+          <span>📚</span>
+          <span>新建书籍</span>
+        </h3>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">书名 *</label>
@@ -1275,11 +1295,14 @@ function EditBookModal({ book, onClose, onSubmit }) {
   return (
     <div className="fixed inset-0 z-[101] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-xl shadow-xl border p-6 max-w-md w-full"
+        initial={{ opacity: 0, y: 12, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        className="bg-white/95 backdrop-blur-md rounded-xl shadow-2xl border-2 border-indigo-100 p-6 max-w-md w-full"
       >
-        <h3 className="text-lg font-semibold mb-4">编辑书籍</h3>
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-blue-600">
+          <span>✏️</span>
+          <span>编辑书籍</span>
+        </h3>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">书名 *</label>
@@ -1360,11 +1383,14 @@ function DeletePasswordModal({ onClose, password, onPasswordChange, onConfirm })
   return (
     <div className="fixed inset-0 z-[102] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-xl shadow-xl border p-6 max-w-md w-full"
+        initial={{ opacity: 0, y: 12, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        className="bg-white/95 backdrop-blur-md rounded-xl shadow-2xl border-2 border-red-100 p-6 max-w-md w-full"
       >
-        <h3 className="text-lg font-semibold mb-4">删除操作需要验证</h3>
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-red-600">
+          <span>⚠️</span>
+          <span>删除操作需要验证</span>
+        </h3>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">请输入删除密码</label>
@@ -2026,19 +2052,62 @@ h2 { font-size: 16px; margin-top: 18px; }
     }
   }, [smiles, smilesLibReady]);
 
+  // 固定粒子位置，避免重新渲染时改变
+  const particlePositions = useMemo(() => {
+    return Array.from({ length: 9 }, () => ({
+      top: Math.random() * 100,
+      left: Math.random() * 100,
+    }));
+  }, []); // 空依赖数组，只在组件挂载时计算一次
+
   // UI
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-slate-50 p-3 sm:p-6 flex justify-center text-center">
-      <div className="w-full max-w-6xl space-y-6">
+    <div className="min-h-screen bg-gradient-to-b from-white via-indigo-50/30 to-slate-50 p-3 sm:p-6 flex justify-center text-center relative overflow-hidden">
+      {/* 背景粒子装饰 */}
+      <div className="background-particles">
+        {particlePositions.map((pos, i) => (
+          <div key={i} className="particle" style={{ top: `${pos.top}%`, left: `${pos.left}%` }} />
+        ))}
+      </div>
+      
+      {/* 化学分子结构装饰 */}
+      <div className="molecule-decoration" style={{ top: '10%', right: '5%', width: '200px', height: '200px' }}>
+        <svg viewBox="0 0 100 100" className="w-full h-full text-indigo-300">
+          <circle cx="50" cy="50" r="2" fill="currentColor" />
+          <circle cx="30" cy="30" r="2" fill="currentColor" />
+          <circle cx="70" cy="30" r="2" fill="currentColor" />
+          <circle cx="30" cy="70" r="2" fill="currentColor" />
+          <circle cx="70" cy="70" r="2" fill="currentColor" />
+          <line x1="50" y1="50" x2="30" y2="30" stroke="currentColor" strokeWidth="1" />
+          <line x1="50" y1="50" x2="70" y2="30" stroke="currentColor" strokeWidth="1" />
+          <line x1="50" y1="50" x2="30" y2="70" stroke="currentColor" strokeWidth="1" />
+          <line x1="50" y1="50" x2="70" y2="70" stroke="currentColor" strokeWidth="1" />
+        </svg>
+      </div>
+      <div className="molecule-decoration" style={{ bottom: '15%', left: '3%', width: '150px', height: '150px' }}>
+        <svg viewBox="0 0 100 100" className="w-full h-full text-purple-300" style={{ animationDirection: 'reverse' }}>
+          <circle cx="50" cy="50" r="3" fill="currentColor" />
+          <circle cx="20" cy="50" r="2" fill="currentColor" />
+          <circle cx="80" cy="50" r="2" fill="currentColor" />
+          <circle cx="50" cy="20" r="2" fill="currentColor" />
+          <circle cx="50" cy="80" r="2" fill="currentColor" />
+          <line x1="50" y1="50" x2="20" y2="50" stroke="currentColor" strokeWidth="1.5" />
+          <line x1="50" y1="50" x2="80" y2="50" stroke="currentColor" strokeWidth="1.5" />
+          <line x1="50" y1="50" x2="50" y2="20" stroke="currentColor" strokeWidth="1.5" />
+          <line x1="50" y1="50" x2="50" y2="80" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
+      </div>
+      
+      <div className="w-full max-w-6xl space-y-6 relative z-10">
         {/* Header */}
         <motion.header
-          className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+          className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-indigo-100"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
           <div className="ml-1 sm:ml-3">
-            <h1 className="text-3xl font-bold">OrganicChem AI助教</h1>
-            <p className="mt-2 text-sm text-slate-500">
+            <h1 className="text-2xl sm:text-3xl font-bold whitespace-nowrap">OrganicChem AI助教</h1>
+            <p className="mt-2 text-sm text-slate-600">
               交互式教学 · 可视化分子 · 可追溯知识单元
             </p>
           </div>
@@ -2054,7 +2123,7 @@ h2 { font-size: 16px; margin-top: 18px; }
                   <button
                     onClick={handleLogout}
                     type="button"
-                    className="px-3 py-2 rounded-lg bg-red-600 text-white flex items-center gap-2 hover:bg-red-700 text-sm"
+                    className="px-3 py-2 rounded-lg bg-red-600 text-white flex items-center gap-2 hover:bg-red-700 text-sm btn-animated shadow-md hover:shadow-lg transition-all"
                     aria-label="登出"
                     title="登出"
                   >
@@ -2065,7 +2134,7 @@ h2 { font-size: 16px; margin-top: 18px; }
                 <button
                   onClick={() => setShowAuth(true)}
                   type="button"
-                  className="px-3 py-2 rounded-lg bg-indigo-600 text-white flex items-center gap-2 hover:bg-indigo-700 text-sm"
+                  className="px-3 py-2 rounded-lg bg-indigo-600 text-white flex items-center gap-2 hover:bg-indigo-700 text-sm btn-animated shadow-md hover:shadow-lg transition-all"
                   aria-label="登录"
                   title="登录"
                 >
@@ -2075,33 +2144,33 @@ h2 { font-size: 16px; margin-top: 18px; }
             </div>
             {/* 第二行：结构式绘制+文档管理+清除历史 */}
             <div className="flex gap-2 items-center">
-              <button
-                onClick={() => setShowChemDrawSelector(true)}
-                type="button"
-                className="px-3 py-2 rounded-lg bg-purple-600 text-white flex items-center gap-2 hover:bg-purple-700 text-sm"
-                aria-label="结构式绘制"
-                title="结构式绘制"
-              >
-                <PenTool size={14} /> <span className="hidden sm:inline">结构式绘制</span>
-              </button>
-              <button
-                onClick={() => setDocMgrOpen(true)}
-                type="button"
-                className="px-3 py-2 rounded-lg bg-blue-600 text-white flex items-center gap-2 hover:bg-blue-700 text-sm"
-                aria-label="文档管理"
-                title="文档管理"
-              >
-                <BookOpen size={14} /> <span className="hidden sm:inline">文档管理</span>
-              </button>
-              <button
-                onClick={handleClearHistory}
-                type="button"
-                className="px-3 py-2 rounded-lg bg-green-600 text-white flex items-center gap-2 hover:bg-green-700 text-sm"
-                aria-label="清空历史"
-                title="清空历史"
-              >
-                <Trash2 size={14} /> <span className="hidden sm:inline">清除历史</span>
-              </button>
+                <button
+                  onClick={() => setShowChemDrawSelector(true)}
+                  type="button"
+                  className="px-3 py-2 rounded-lg bg-purple-600 text-white flex items-center gap-2 hover:bg-purple-700 text-sm btn-animated shadow-md hover:shadow-lg transition-all"
+                  aria-label="结构式绘制"
+                  title="结构式绘制"
+                >
+                    <PenTool size={14} /> <span className="hidden sm:inline">结构式绘制</span>
+                  </button>
+                  <button
+                    onClick={() => setDocMgrOpen(true)}
+                    type="button"
+                    className="px-3 py-2 rounded-lg bg-blue-600 text-white flex items-center gap-2 hover:bg-blue-700 text-sm btn-animated shadow-md hover:shadow-lg transition-all"
+                    aria-label="文档管理"
+                    title="文档管理"
+                  >
+                    <BookOpen size={14} /> <span className="hidden sm:inline">文档管理</span>
+                  </button>
+                  <button
+                    onClick={handleClearHistory}
+                    type="button"
+                    className="px-3 py-2 rounded-lg bg-green-600 text-white flex items-center gap-2 hover:bg-green-700 text-sm btn-animated shadow-md hover:shadow-lg transition-all"
+                    aria-label="清空历史"
+                    title="清空历史"
+                  >
+                    <Trash2 size={14} /> <span className="hidden sm:inline">清除历史</span>
+                  </button>
             </div>
           </div>
         </motion.header>
@@ -2109,10 +2178,13 @@ h2 { font-size: 16px; margin-top: 18px; }
         {/* Main */}
         <main className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* 左侧：输入区 —— 固定高度 + 内部滚动；内容默认左对齐，标题单独居中 */}
-          <section className={`md:col-span-1 bg-white p-4 rounded-2xl shadow-md flex flex-col gap-4 overflow-hidden ${PANEL_H}`}>
+          <section className={`md:col-span-1 bg-white/90 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-indigo-100 flex flex-col gap-4 overflow-hidden card-hover ${PANEL_H}`}>
             <form className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto pr-1" onSubmit={handleSubmit}>
               {/* 标题居中 */}
-              <label className="text-lg font-semibold text-center">输入你的问题</label>
+              <label className="text-lg font-semibold text-center flex items-center justify-center gap-2 text-indigo-600">
+                <span>💡</span>
+                <span>输入你的问题</span>
+              </label>
 
               <div 
                 className="relative"
@@ -2125,8 +2197,10 @@ h2 { font-size: 16px; margin-top: 18px; }
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   onPaste={handlePasteToTextarea}
-                  className={`w-full p-3 border rounded-md text-sm resize-none pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset focus:border-blue-500 ${
-                    inputDragActive ? "border-blue-500 ring-2 ring-blue-500 ring-inset" : ""
+                  className={`w-full p-3 border-2 rounded-lg text-sm resize-none pr-12 transition-all ${
+                    inputDragActive 
+                      ? "border-indigo-500 ring-4 ring-indigo-200 ring-inset bg-indigo-50" 
+                      : "border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:ring-inset focus:outline-none"
                   }`}
                   placeholder={inputDragActive ? "松开以上传文件" : "例如：解释 SN1 反应的机理..."}
                   aria-label="问题输入"
@@ -2153,11 +2227,21 @@ h2 { font-size: 16px; margin-top: 18px; }
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 disabled:opacity-60"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 disabled:opacity-60 btn-animated shadow-lg hover:shadow-xl transition-all"
                   aria-label="提交问题"
                   title="提交问题"
                 >
-                  <Send size={16} /> {loading ? "正在分析..." : "提交问题"}
+                  <Send size={16} /> 
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <span>正在分析</span>
+                      <span className="loading-dots">
+                        <span></span><span></span><span></span>
+                      </span>
+                    </span>
+                  ) : (
+                    "提交问题"
+                  )}
                 </button>
 
                 {loading ? (
@@ -2248,10 +2332,10 @@ h2 { font-size: 16px; margin-top: 18px; }
 
               {/* 上传图片或文件 */}
               <label 
-                className={`flex flex-col items-center justify-center gap-2 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition ${
+                className={`flex flex-col items-center justify-center gap-2 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
                   uploadAreaDragActive 
-                    ? "border-green-500 bg-green-100" 
-                    : "border-slate-300 hover:border-green-500 hover:bg-green-50"
+                    ? "border-indigo-500 bg-indigo-100 ring-4 ring-indigo-200 scale-105" 
+                    : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50 hover:shadow-md"
                 }`}
                 onDragOver={handleUploadAreaDragOver}
                 onDragLeave={handleUploadAreaDragLeave}
@@ -2319,7 +2403,10 @@ h2 { font-size: 16px; margin-top: 18px; }
               </label>
 
               {/* SMILES 输入 + 画布 */}
-              <label className="text-lg font-semibold text-center">SMILES 可视化</label>
+              <label className="text-lg font-semibold text-center flex items-center justify-center gap-2 text-purple-600">
+                <span>⚗️</span>
+                <span>SMILES 可视化</span>
+              </label>
               <div className="flex gap-2">
                 <input
                   value={smiles}
@@ -2360,7 +2447,7 @@ h2 { font-size: 16px; margin-top: 18px; }
                   <button
                     onClick={handleReset}
                     type="button"
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm bg-white hover:bg-slate-50 shadow-sm active:shadow-none transition"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border-2 border-slate-300 px-3 py-2 text-sm bg-white hover:bg-gradient-to-r hover:from-slate-50 hover:to-indigo-50 hover:border-indigo-400 shadow-sm hover:shadow-md active:shadow-none transition-all btn-animated"
                     title="重置"
                     aria-label="重置"
                   >
@@ -2369,7 +2456,7 @@ h2 { font-size: 16px; margin-top: 18px; }
                   <button
                     onClick={handleCopyAnswer}
                     type="button"
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm bg-white hover:bg-slate-50 shadow-sm active:shadow-none transition"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border-2 border-slate-300 px-3 py-2 text-sm bg-white hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 hover:border-indigo-400 shadow-sm hover:shadow-md active:shadow-none transition-all btn-animated"
                     title="复制答案"
                     aria-label="复制答案"
                   >
@@ -2378,7 +2465,7 @@ h2 { font-size: 16px; margin-top: 18px; }
                   <button
                     onClick={handleDownloadMarkdown}
                     type="button"
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm bg-white hover:bg-slate-50 shadow-sm active:shadow-none transition"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border-2 border-slate-300 px-3 py-2 text-sm bg-white hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:border-purple-400 shadow-sm hover:shadow-md active:shadow-none transition-all btn-animated"
                     title="下载 Markdown"
                     aria-label="下载 Markdown"
                   >
@@ -2387,7 +2474,7 @@ h2 { font-size: 16px; margin-top: 18px; }
                   <button
                     onClick={handleExport}
                     type="button"
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm bg-white hover:bg-slate-50 shadow-sm active:shadow-none transition"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border-2 border-slate-300 px-3 py-2 text-sm bg-white hover:bg-gradient-to-r hover:from-cyan-50 hover:to-blue-50 hover:border-cyan-400 shadow-sm hover:shadow-md active:shadow-none transition-all btn-animated"
                     title="导出/打印"
                     aria-label="导出/打印"
                   >
@@ -2401,14 +2488,21 @@ h2 { font-size: 16px; margin-top: 18px; }
           {/* 右侧：答案 + 历史（固定高度 + 内部滚动；内容左对齐，标题居中） */}
           <section className="md:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* 答案卡片 */}
-            <div className={`bg-white p-4 rounded-2xl shadow-md flex flex-col overflow-hidden ${PANEL_H}`}>
-              <motion.h2 className="text-lg font-semibold mb-3 text-center">
-                AI 回答
+            <div className={`bg-white/90 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-indigo-100 flex flex-col overflow-hidden card-hover ${PANEL_H}`}>
+              <motion.h2 className="text-lg font-semibold mb-3 text-center flex items-center justify-center gap-2 text-blue-600">
+                <span>🤖</span>
+                <span>AI 回答</span>
               </motion.h2>
 
               {!answer && !loading && (
-                <div className="text-sm text-slate-500">
-                  提交问题后，系统会在此展示答案。
+                <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                  <div className="text-6xl mb-4">🔬</div>
+                  <div className="text-sm text-slate-600 font-medium mb-2">
+                    等待你的问题
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    提交问题后，系统会在此展示答案
+                  </div>
                 </div>
               )}
               {loading && (
@@ -2448,18 +2542,25 @@ h2 { font-size: 16px; margin-top: 18px; }
             </div>
 
             {/* 历史卡片 */}
-            <div className={`bg-white p-4 rounded-2xl shadow-md flex flex-col overflow-hidden ${PANEL_H}`}>
-              <h3 className="text-lg font-semibold mb-3 text-center">历史 & 快速复用</h3>
+            <div className={`bg-white/90 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-indigo-100 flex flex-col overflow-hidden card-hover ${PANEL_H}`}>
+              <h3 className="text-lg font-semibold mb-3 text-center flex items-center justify-center gap-2 text-green-600">
+                <span>📚</span>
+                <span>历史 & 快速复用</span>
+              </h3>
               <input
                 type="text"
-                placeholder="搜索历史..."
+                placeholder="🔍 搜索历史..."
                 value={historySearch}
                 onChange={(e) => setHistorySearch(e.target.value)}
-                className="mb-2 w-full p-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-inset focus:border-slate-400"
+                className="mb-2 w-full p-2 border-2 border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 input-focus transition-all"
                 aria-label="搜索历史"
               />
               {history.length === 0 && (
-                <div className="text-sm text-slate-400">暂无历史</div>
+                <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                  <div className="text-5xl mb-3">📝</div>
+                  <div className="text-sm text-slate-500 font-medium">暂无历史记录</div>
+                  <div className="text-xs text-slate-400 mt-1">开始提问后，历史记录将显示在这里</div>
+                </div>
               )}
               <div className="flex-1 flex flex-col gap-2 overflow-y-auto pr-1">
                 {history
@@ -2475,7 +2576,7 @@ h2 { font-size: 16px; margin-top: 18px; }
                   .map((h, idx) => (
                     <div
                       key={h.localTs || h.id || idx}
-                      className="p-3 rounded-md border hover:bg-slate-50"
+                      className="p-3 rounded-lg border-2 border-slate-200 hover:border-indigo-300 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 transition-all card-hover"
                     >
                       <div className="flex justify-between items-start gap-3">
                         <div className="text-sm font-medium">
@@ -2490,7 +2591,7 @@ h2 { font-size: 16px; margin-top: 18px; }
                       </div>
                       <div className="mt-3 flex gap-2">
                         <button
-                          className="px-2 py-1 text-xs border rounded hover:bg-slate-100"
+                          className="px-2 py-1 text-xs border-2 border-indigo-200 rounded-md hover:bg-indigo-100 hover:border-indigo-300 text-indigo-700 transition-all"
                           onClick={() => {
                             setQuestion(h.query || "");
                             setAnswer(h);
@@ -2499,7 +2600,7 @@ h2 { font-size: 16px; margin-top: 18px; }
                           Load
                         </button>
                         <button
-                          className="px-2 py-1 text-xs border rounded hover:bg-slate-100"
+                          className="px-2 py-1 text-xs border-2 border-purple-200 rounded-md hover:bg-purple-100 hover:border-purple-300 text-purple-700 transition-all"
                           onClick={() =>
                             navigator.clipboard?.writeText(h.text || "")
                           }
@@ -2515,23 +2616,35 @@ h2 { font-size: 16px; margin-top: 18px; }
         </main>
 
         {/* 反馈 */}
-        <section className="bg-white p-4 rounded-2xl shadow-md flex flex-col gap-3">
-          <h3 className="text-lg font-semibold text-center">发送反馈</h3>
+        <section className="bg-white/90 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-indigo-100 flex flex-col gap-3 card-hover">
+          <h3 className="text-lg font-semibold text-center flex items-center justify-center gap-2 text-orange-600">
+            <span>💬</span>
+            <span>发送反馈</span>
+          </h3>
           <textarea
             rows={3}
-            placeholder="告诉我们你的问题或建议..."
+            placeholder="💭 告诉我们你的问题或建议..."
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
-            className="w-full p-2 border rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-inset focus:border-indigo-400"
+            className="w-full p-3 border-2 border-slate-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 input-focus transition-all"
           />
           <div className="flex justify-end">
             <button
               onClick={handleFeedback}
               disabled={sending}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 btn-animated shadow-md hover:shadow-lg transition-all"
             >
               <BiSend size={14} />
-              {sending ? "正在发送..." : "发送反馈"}
+              {sending ? (
+                <span className="flex items-center gap-2">
+                  <span>正在发送</span>
+                  <span className="loading-dots">
+                    <span></span><span></span><span></span>
+                  </span>
+                </span>
+              ) : (
+                "发送反馈"
+              )}
             </button>
           </div>
           {feedbackMsg && (

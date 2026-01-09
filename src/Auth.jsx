@@ -164,13 +164,18 @@ function Auth({ onClose, onLogin }) {
       <motion.div
         initial={{ opacity: 0, y: 12, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="w-full max-w-md bg-white rounded-2xl shadow-2xl border overflow-hidden"
+        className="w-full max-w-md bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border-2 border-indigo-100 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b bg-gradient-to-r from-indigo-50 to-white">
-          <h2 className="text-xl font-semibold text-slate-800">
-            {mode === "register" ? "注册账号" : mode === "login-code" ? "验证码登录" : "登录账号"}
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b-2 border-indigo-100 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50">
+          <h2 className="text-xl font-semibold text-indigo-600 flex items-center gap-2">
+            <span>
+              {mode === "register" ? "📝" : mode === "login-code" ? "🔐" : "🔑"}
+            </span>
+            <span>
+              {mode === "register" ? "注册账号" : mode === "login-code" ? "验证码登录" : "登录账号"}
+            </span>
           </h2>
           <button
             onClick={onClose}
@@ -186,10 +191,10 @@ function Auth({ onClose, onLogin }) {
           {/* 消息提示 */}
           {message.text && (
             <div
-              className={`mb-4 p-3 rounded-lg flex items-center gap-2 text-sm ${
+              className={`mb-4 p-3 rounded-lg flex items-center gap-2 text-sm border-2 ${
                 message.type === "error"
-                  ? "bg-red-50 text-red-700 border border-red-200"
-                  : "bg-green-50 text-green-700 border border-green-200"
+                  ? "bg-red-50 text-red-700 border-red-300 shadow-sm"
+                  : "bg-green-50 text-green-700 border-green-300 shadow-sm"
               }`}
             >
               {message.type === "error" ? (
@@ -216,7 +221,7 @@ function Auth({ onClose, onLogin }) {
                     onChange={(e) =>
                       setRegisterForm({ ...registerForm, username: e.target.value })
                     }
-                    className="w-full pl-10 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-10 pr-3 py-2 border-2 border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset focus:border-indigo-400 transition-all"
                     placeholder="3-20个字符"
                     required
                     minLength={3}
@@ -237,7 +242,7 @@ function Auth({ onClose, onLogin }) {
                     onChange={(e) =>
                       setRegisterForm({ ...registerForm, email: e.target.value })
                     }
-                    className="w-full pl-10 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-10 pr-3 py-2 border-2 border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset focus:border-indigo-400 transition-all"
                     placeholder="your@email.com"
                     required
                   />
@@ -256,7 +261,7 @@ function Auth({ onClose, onLogin }) {
                     onChange={(e) =>
                       setRegisterForm({ ...registerForm, password: e.target.value })
                     }
-                    className="w-full pl-10 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-10 pr-3 py-2 border-2 border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset focus:border-indigo-400 transition-all"
                     placeholder="至少6个字符"
                     required
                     minLength={6}
@@ -276,7 +281,7 @@ function Auth({ onClose, onLogin }) {
                     onChange={(e) =>
                       setRegisterForm({ ...registerForm, confirmPassword: e.target.value })
                     }
-                    className="w-full pl-10 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-10 pr-3 py-2 border-2 border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset focus:border-indigo-400 transition-all"
                     placeholder="再次输入密码"
                     required
                     minLength={6}
@@ -296,7 +301,7 @@ function Auth({ onClose, onLogin }) {
                       onChange={(e) =>
                         setRegisterForm({ ...registerForm, code: e.target.value })
                       }
-                      className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset focus:border-indigo-400 transition-all"
                       placeholder="6位验证码"
                       required
                       maxLength={6}
@@ -306,7 +311,7 @@ function Auth({ onClose, onLogin }) {
                     type="button"
                     onClick={() => handleSendCode(registerForm.email, "register")}
                     disabled={sendingCode || countdown > 0 || !registerForm.email}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center gap-2 whitespace-nowrap"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center gap-2 whitespace-nowrap shadow-md hover:shadow-lg transition-all"
                   >
                     <Send size={14} />
                     {sendingCode ? "发送中..." : countdown > 0 ? `${countdown}秒` : "发送验证码"}
@@ -317,7 +322,7 @@ function Auth({ onClose, onLogin }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium"
+                className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium shadow-md hover:shadow-lg transition-all"
               >
                 {loading ? "注册中..." : "注册"}
               </button>
@@ -339,7 +344,7 @@ function Auth({ onClose, onLogin }) {
                     onChange={(e) =>
                       setLoginForm({ ...loginForm, account: e.target.value })
                     }
-                    className="w-full pl-10 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-10 pr-3 py-2 border-2 border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset focus:border-indigo-400 transition-all"
                     placeholder="用户名或邮箱"
                     required
                   />
@@ -358,7 +363,7 @@ function Auth({ onClose, onLogin }) {
                     onChange={(e) =>
                       setLoginForm({ ...loginForm, password: e.target.value })
                     }
-                    className="w-full pl-10 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-10 pr-3 py-2 border-2 border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset focus:border-indigo-400 transition-all"
                     placeholder="请输入密码"
                     required
                   />
@@ -368,7 +373,7 @@ function Auth({ onClose, onLogin }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium"
+                className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium shadow-md hover:shadow-lg transition-all"
               >
                 {loading ? "登录中..." : "登录"}
               </button>
@@ -390,7 +395,7 @@ function Auth({ onClose, onLogin }) {
                     onChange={(e) =>
                       setLoginCodeForm({ ...loginCodeForm, email: e.target.value })
                     }
-                    className="w-full pl-10 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-10 pr-3 py-2 border-2 border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset focus:border-indigo-400 transition-all"
                     placeholder="your@email.com"
                     required
                   />
@@ -409,7 +414,7 @@ function Auth({ onClose, onLogin }) {
                       onChange={(e) =>
                         setLoginCodeForm({ ...loginCodeForm, code: e.target.value })
                       }
-                      className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset focus:border-indigo-400 transition-all"
                       placeholder="6位验证码"
                       required
                       maxLength={6}
@@ -419,7 +424,7 @@ function Auth({ onClose, onLogin }) {
                     type="button"
                     onClick={() => handleSendCode(loginCodeForm.email, "login")}
                     disabled={sendingCode || countdown > 0 || !loginCodeForm.email}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center gap-2 whitespace-nowrap"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center gap-2 whitespace-nowrap shadow-md hover:shadow-lg transition-all"
                   >
                     <Send size={14} />
                     {sendingCode ? "发送中..." : countdown > 0 ? `${countdown}秒` : "发送验证码"}
@@ -430,7 +435,7 @@ function Auth({ onClose, onLogin }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium"
+                className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium shadow-md hover:shadow-lg transition-all"
               >
                 {loading ? "登录中..." : "登录"}
               </button>
@@ -438,7 +443,7 @@ function Auth({ onClose, onLogin }) {
           )}
 
           {/* 切换模式 */}
-          <div className="mt-6 pt-4 border-t text-center space-y-2">
+          <div className="mt-6 pt-4 border-t-2 border-indigo-100 text-center space-y-2">
             {mode === "login" && (
               <>
                 <button

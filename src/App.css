@@ -103,8 +103,8 @@
 
 /* 六个节点的脉冲延迟 */
 .oc-dot {
-  fill: #10b981; /* 默认：绿色（Tailwind emerald-500） */
-  filter: drop-shadow(0 0 4px rgba(16,185,129,.5));
+  fill: #6366f1; /* 默认：靛蓝色（Tailwind indigo-500） */
+  filter: drop-shadow(0 0 6px rgba(99,102,241,.6));
   animation: oc-pulse 1.4s cubic-bezier(.4,0,.2,1) infinite;
 }
 .oc-dot.d1 { animation-delay: 0.00s; }
@@ -114,11 +114,237 @@
 .oc-dot.d5 { animation-delay: 0.40s; }
 .oc-dot.d6 { animation-delay: 0.50s; }
 @keyframes oc-pulse {
-  0%,100% { opacity: .3; r: 2; }
-  50%     { opacity: 1;  r: 3.6; }
+  0%,100% { opacity: .4; r: 2.5; }
+  50%     { opacity: 1;  r: 4; }
 }
 
-/* 无障碍：尊重系统“减少动态效果”设置 */
+/* 无障碍：尊重系统"减少动态效果"设置 */
 @media (prefers-reduced-motion: reduce) {
   .oc-ring, .oc-hex, .oc-dot { animation: none !important; }
+}
+
+/* 背景粒子动画 */
+.background-particles {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(139, 92, 246, 0.3));
+  animation: float 20s infinite ease-in-out;
+  opacity: 0.4;
+}
+
+.particle:nth-child(1) { width: 80px; height: 80px; left: 10%; animation-delay: 0s; }
+.particle:nth-child(2) { width: 120px; height: 120px; left: 20%; animation-delay: 2s; }
+.particle:nth-child(3) { width: 60px; height: 60px; left: 30%; animation-delay: 4s; }
+.particle:nth-child(4) { width: 100px; height: 100px; left: 40%; animation-delay: 6s; }
+.particle:nth-child(5) { width: 90px; height: 90px; left: 50%; animation-delay: 8s; }
+.particle:nth-child(6) { width: 70px; height: 70px; left: 60%; animation-delay: 10s; }
+.particle:nth-child(7) { width: 110px; height: 110px; left: 70%; animation-delay: 12s; }
+.particle:nth-child(8) { width: 85px; height: 85px; left: 80%; animation-delay: 14s; }
+.particle:nth-child(9) { width: 95px; height: 95px; left: 90%; animation-delay: 16s; }
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 0.3;
+  }
+  25% {
+    transform: translateY(-100px) translateX(50px) scale(1.1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateY(-200px) translateX(-30px) scale(0.9);
+    opacity: 0.4;
+  }
+  75% {
+    transform: translateY(-100px) translateX(-50px) scale(1.05);
+    opacity: 0.5;
+  }
+}
+
+/* 化学分子结构装饰 */
+.molecule-decoration {
+  position: absolute;
+  opacity: 0.1;
+  pointer-events: none;
+  animation: rotate-slow 30s linear infinite;
+}
+
+@keyframes rotate-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 卡片悬停效果增强 */
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.card-hover::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s;
+}
+
+.card-hover:hover::before {
+  left: 100%;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* 按钮动画增强 */
+.btn-animated {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.btn-animated::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn-animated:hover::after {
+  width: 300px;
+  height: 300px;
+}
+
+.btn-animated:active {
+  transform: scale(0.98);
+}
+
+/* 渐变背景增强 */
+.gradient-bg {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%);
+  background-size: 400% 400%;
+  animation: gradient-shift 15s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* 输入框聚焦动画 */
+.input-focus {
+  transition: all 0.3s ease;
+}
+
+.input-focus:focus {
+  box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+/* 脉冲动画 */
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(99, 102, 241, 0.6), 0 0 40px rgba(139, 92, 246, 0.4);
+  }
+}
+
+/* 化学图标装饰 */
+.chem-icon {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+  transition: transform 0.3s ease;
+}
+
+.chem-icon:hover {
+  transform: scale(1.1) rotate(5deg);
+}
+
+/* 加载点动画 */
+.loading-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.loading-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: loading-bounce 1.4s ease-in-out infinite;
+}
+
+.loading-dots span:nth-child(1) { animation-delay: 0s; }
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes loading-bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* 闪烁效果 */
+.shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* 3D卡片效果 */
+.card-3d {
+  transform-style: preserve-3d;
+  transition: transform 0.3s ease;
+}
+
+.card-3d:hover {
+  transform: perspective(1000px) rotateX(5deg) rotateY(5deg);
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+  .particle {
+    display: none;
+  }
+  
+  .molecule-decoration {
+    opacity: 0.05;
+  }
 }
