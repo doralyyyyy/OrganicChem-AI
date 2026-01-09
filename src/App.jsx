@@ -24,9 +24,11 @@ import {
   Search,
   LogIn,
   LogOut,
-  User
+  User,
+  PenTool
 } from "lucide-react";
 import Auth from "./Auth.jsx";
+import ChemDrawSelector from "./ChemDrawSelector.jsx";
 import { BiSend } from "react-icons/bi";
 import { motion } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -497,6 +499,7 @@ function App() {
   const [feedback, setFeedback] = useState("");
   const [feedbackMsg, setFeedbackMsg] = useState("");
   const [sending, setSending] = useState(false);
+  const [showChemDrawSelector, setShowChemDrawSelector] = useState(false);
 
   // 登录状态
   const [user, setUser] = useState(() => {
@@ -1158,16 +1161,25 @@ h2 { font-size: 16px; margin-top: 18px; }
                 </button>
               )}
             </div>
-            {/* 第二行：文档管理+清除历史 */}
+            {/* 第二行：结构式绘制+文档管理+清除历史 */}
             <div className="flex gap-2 items-center">
+              <button
+                onClick={() => setShowChemDrawSelector(true)}
+                type="button"
+                className="px-3 py-2 rounded-lg bg-purple-600 text-white flex items-center gap-2 hover:bg-purple-700 text-sm"
+                aria-label="结构式绘制"
+                title="结构式绘制"
+              >
+                <PenTool size={14} /> <span className="hidden sm:inline">结构式绘制</span>
+              </button>
               <button
                 onClick={() => setDocMgrOpen(true)}
                 type="button"
-                className="px-3 py-2 rounded-lg bg-indigo-600 text-white flex items-center gap-2 hover:bg-indigo-700 text-sm"
+                className="px-3 py-2 rounded-lg bg-blue-600 text-white flex items-center gap-2 hover:bg-blue-700 text-sm"
                 aria-label="文档管理"
                 title="文档管理"
               >
-                <BookOpen size={14} /> <span>文档管理</span>
+                <BookOpen size={14} /> <span className="hidden sm:inline">文档管理</span>
               </button>
               <button
                 onClick={handleClearHistory}
@@ -1176,7 +1188,7 @@ h2 { font-size: 16px; margin-top: 18px; }
                 aria-label="清空历史"
                 title="清空历史"
               >
-                <Trash2 size={14} /> <span>清除历史</span>
+                <Trash2 size={14} /> <span className="hidden sm:inline">清除历史</span>
               </button>
             </div>
           </div>
@@ -1683,6 +1695,11 @@ h2 { font-size: 16px; margin-top: 18px; }
           onClose={() => setShowAuth(false)}
           onLogin={handleLogin}
         />
+      )}
+
+      {/* 结构式绘制选择弹层 */}
+      {showChemDrawSelector && (
+        <ChemDrawSelector onClose={() => setShowChemDrawSelector(false)} />
       )}
     </div>
   );
