@@ -6,6 +6,7 @@ const db = new Database("./memory.db");
 // 适度提升并发/稳定性
 db.pragma("journal_mode = WAL");
 db.pragma("synchronous = NORMAL");
+db.pragma("foreign_keys = ON"); // 启用外键约束
 
 // 表结构
 // 书籍表
@@ -319,7 +320,17 @@ export function listBooksWithStats() {
 }
 
 export function deleteBook(bookId) {
-  // 由于外键级联删除，删除书籍会自动删除章节、文档和分块
+  // 手动删除相关的 chunks（因为 chunks 表没有外键约束）
+  const delChunks = db.prepare(`
+    DELETE FROM chunks 
+    WHERE doc_id IN (
+      SELECT d.id FROM docs d
+      JOIN chapters c ON d.chapter_id = c.id
+      WHERE c.book_id = ?
+    )
+  `).run(bookId).changes || 0;
+  
+  // 删除书籍（会级联删除章节和文档）
   const info = db.prepare("DELETE FROM books WHERE id = ?").run(bookId);
   return info.changes > 0;
 }
@@ -351,7 +362,13 @@ export function getChaptersByBook(bookId) {
 }
 
 export function deleteChapter(chapterId) {
-  // 由于外键级联删除，删除章节会自动删除文档和分块
+  // 手动删除相关的 chunks（因为 chunks 表没有外键约束）
+  const delChunks = db.prepare(`
+    DELETE FROM chunks 
+    WHERE doc_id IN (SELECT id FROM docs WHERE chapter_id = ?)
+  `).run(chapterId).changes || 0;
+  
+  // 删除章节（会级联删除文档）
   const info = db.prepare("DELETE FROM chapters WHERE id = ?").run(chapterId);
   return info.changes > 0;
 }
