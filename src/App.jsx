@@ -2542,8 +2542,8 @@ h2 { font-size: 16px; margin-top: 18px; }
             </div>
 
             {/* 历史卡片 */}
-            <div className={`bg-white/90 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-indigo-100 flex flex-col overflow-hidden card-hover ${PANEL_H}`}>
-              <h3 className="text-lg font-semibold mb-3 text-center flex items-center justify-center gap-2 text-green-600">
+            <div className={`bg-white/90 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-indigo-100 flex flex-col card-hover ${PANEL_H}`}>
+              <h3 className="text-lg font-semibold mb-3 text-center flex items-center justify-center gap-2 text-green-600 flex-shrink-0">
                 <span>📚</span>
                 <span>历史 & 快速复用</span>
               </h3>
@@ -2552,17 +2552,17 @@ h2 { font-size: 16px; margin-top: 18px; }
                 placeholder="🔍 搜索历史..."
                 value={historySearch}
                 onChange={(e) => setHistorySearch(e.target.value)}
-                className="mb-2 w-full p-2 border-2 border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 input-focus transition-all"
+                className="mb-2 w-full p-2 border-2 border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 input-focus transition-all flex-shrink-0"
                 aria-label="搜索历史"
               />
               {history.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                <div className="flex flex-col items-center justify-center flex-1 text-center py-8">
                   <div className="text-5xl mb-3">📝</div>
                   <div className="text-sm text-slate-500 font-medium">暂无历史记录</div>
                   <div className="text-xs text-slate-400 mt-1">开始提问后，历史记录将显示在这里</div>
                 </div>
               )}
-              <div className="flex-1 flex flex-col gap-2 overflow-y-auto pr-1">
+              <div className="flex-1 flex flex-col gap-2 overflow-y-auto pr-1 min-h-0 overflow-x-hidden">
                 {history
                   .filter(
                     (h) =>
@@ -2576,22 +2576,22 @@ h2 { font-size: 16px; margin-top: 18px; }
                   .map((h, idx) => (
                     <div
                       key={h.localTs || h.id || idx}
-                      className="p-3 rounded-lg border-2 border-slate-200 hover:border-indigo-300 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 transition-all card-hover"
+                      className="p-3 rounded-lg border-2 border-slate-200 hover:border-indigo-300 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 transition-all card-hover flex flex-col gap-2 flex-shrink-0"
                     >
-                      <div className="flex justify-between items-start gap-3">
-                        <div className="text-sm font-medium">
+                      <div className="flex justify-between items-start gap-3 min-w-0">
+                        <div className="text-sm font-medium flex-1 min-w-0 break-words">
                           {(h.query || "").slice(0, 80) || "（无问题标题）"}
                         </div>
-                        <div className="text-xs text-slate-400 whitespace-nowrap">
+                        <div className="text-xs text-slate-400 whitespace-nowrap flex-shrink-0">
                           {formatDate(h.localTs || h.id)}
                         </div>
                       </div>
-                      <div className="text-xs text-slate-600 mt-2">
+                      <div className="text-xs text-slate-600 line-clamp-3 break-words">
                         {(h.text || "").slice(0, 160)}
                       </div>
-                      <div className="mt-3 flex gap-2">
+                      <div className="mt-auto flex gap-2 flex-shrink-0">
                         <button
-                          className="px-2 py-1 text-xs border-2 border-indigo-200 rounded-md hover:bg-indigo-100 hover:border-indigo-300 text-indigo-700 transition-all"
+                          className="px-2 py-1 text-xs border-2 border-indigo-200 rounded-md hover:bg-indigo-100 hover:border-indigo-300 text-indigo-700 transition-all whitespace-nowrap"
                           onClick={() => {
                             setQuestion(h.query || "");
                             setAnswer(h);
@@ -2600,7 +2600,7 @@ h2 { font-size: 16px; margin-top: 18px; }
                           Load
                         </button>
                         <button
-                          className="px-2 py-1 text-xs border-2 border-purple-200 rounded-md hover:bg-purple-100 hover:border-purple-300 text-purple-700 transition-all"
+                          className="px-2 py-1 text-xs border-2 border-purple-200 rounded-md hover:bg-purple-100 hover:border-purple-300 text-purple-700 transition-all whitespace-nowrap"
                           onClick={() =>
                             navigator.clipboard?.writeText(h.text || "")
                           }

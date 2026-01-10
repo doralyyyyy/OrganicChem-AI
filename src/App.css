@@ -61,6 +61,14 @@
   overflow: hidden;
 }
 
+/* 历史记录项文本截断 */
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 /* animated loader styles (non-invasive) */
 .oc-loader {
   width: 160px;

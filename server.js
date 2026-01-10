@@ -1034,7 +1034,7 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
     const hasImage = !!(imagePath || imageDataUrl);
     const modelToUse = hasImage ? "gemini-3-pro-preview" : "gpt-5.1";
 
-    // 工具定义（让模型决定是否调用 RAG）
+    // 工具定义（让模型决定是否调用 RAG 和判断难度）
     // Reaxys 和联网搜索不在工具列表中，它们会在 RAG 无结果时自动调用
     const tools = [
       {
@@ -1042,26 +1042,54 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
         function: {
           name: "search_rag",
           description:
-            "Retrieve relevant knowledge about an organic chemical entity or concept from local knowledge base. Use this when you need to search for information in the local knowledge base.",
+            "从本地知识库中检索有关有机化学物质或概念的相关知识。当需要从本地知识库中搜索信息时使用此工具。",
           parameters: {
             type: "object",
             properties: {
               query: {
                 type: "string",
-                description: "Entity + property to search",
+                description: "要搜索的物质、属性和概念",
               },
             },
             required: ["query"],
           },
         },
       },
+      {
+        type: "function",
+        function: {
+          name: "judge_difficulty",
+          description:
+            "如果你认为不需要调用search_rag工具，请务必调用本工具。本工具目的是判断题目难度是否基础。基础题目是指只需要基础概念的问题（如简单的反应类型、常见化合物命名、基本理论等）。非基础题目涉及复杂机理、特定反应条件、详细实验现象等专业知识。",
+          parameters: {
+            type: "object",
+            properties: {
+              is_basic: {
+                type: "boolean",
+                description: "题目是否为基础题。true表示基础题，false表示非基础题。",
+              },
+            },
+            required: ["is_basic"],
+          },
+        },
+      },
     ];
 
     // 第一次调用：使用支持视觉且反应快速的模型
+    // 添加临时系统提示，要求同时调用两个工具（不影响 baseMessages）
+    const firstCallMessages = [
+      ...baseMessages,
+      {
+        role: "system",
+        content: "**重要工具调用要求**：如果这是道题目，并且你认为不需要调用 search_rag 工具，请务必调用 judge_difficulty 工具",
+      },
+      { role: "user", content: userContent },
+    ];
+    
     const first = await postChatCompletion({
       model: "gpt-4o",
       temperature: 0.2,
-      messages: [...baseMessages, { role: "user", content: userContent }],
+      messages: firstCallMessages,
       tools,
       tool_choice: "auto",
     });
@@ -1079,6 +1107,21 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
     const ragCall = (toolCalls || []).find(
       (tc) => tc?.type === "function" && tc?.function?.name === "search_rag"
     );
+    
+    const difficultyCall = (toolCalls || []).find(
+      (tc) => tc?.type === "function" && tc?.function?.name === "judge_difficulty"
+    );
+
+    // 记录工具调用情况
+    if (ragCall && difficultyCall) {
+      console.log("✓ 同时调用了 RAG 和难度判断工具");
+    } else if (ragCall) {
+      console.log("⚠ 调用了 RAG 工具（未调用难度判断）");
+    } else if (difficultyCall) {
+      console.log("⚠ 调用了难度判断工具（未调用 RAG）");
+    } else {
+      console.log("⚠ 未调用任何工具");
+    }
 
     // 辅助函数：解析工具调用的 query 参数
     function extractQueryFromToolCall(toolCall) {
@@ -1087,6 +1130,20 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
         const parsed = typeof args === "string" ? JSON.parse(args) : args;
         if (parsed && typeof parsed.query === "string") {
           return parsed.query;
+        }
+      } catch {
+        // 忽略解析错误
+      }
+      return null;
+    }
+
+    // 辅助函数：解析难度判断结果
+    function extractDifficultyFromToolCall(toolCall) {
+      try {
+        const args = toolCall?.function?.arguments;
+        const parsed = typeof args === "string" ? JSON.parse(args) : args;
+        if (parsed && typeof parsed.is_basic === "boolean") {
+          return parsed.is_basic;
         }
       } catch {
         // 忽略解析错误
@@ -1206,7 +1263,13 @@ ${contextText}
     }
 
     if (ragCall) {
-      console.log("RAG Called");
+      console.log("RAG Called, proceeding with RAG regardless of difficulty");
+      
+      // 如果同时调用了难度判断工具，记录结果（但不影响 RAG 执行）
+      if (difficultyCall) {
+        const isBasic = extractDifficultyFromToolCall(difficultyCall);
+        console.log(`同时进行了难度判断: ${isBasic ? "基础题" : "非基础题"}（但会优先执行 RAG）`);
+      }
 
       // 尝试从工具调用中解析 query
       let ragQuery = extractQueryFromToolCall(ragCall);
@@ -1273,9 +1336,39 @@ ${contextText}
       }
     } else {
       console.log("RAG Uncalled");
-      // 未调用 RAG：直接采用第一次结果
-      answerText = first?.choices?.[0]?.message?.content || "";
-      results = []; // 显式置空
+      // 未调用 RAG：需要判断难度
+      let isBasic = null;
+      if (difficultyCall) {
+        isBasic = extractDifficultyFromToolCall(difficultyCall);
+        console.log(`Difficulty judgment: ${isBasic ? "基础题" : "非基础题"}`);
+      }
+      
+      if (isBasic === true) {
+        // 基础题：再次调用 GPT-4o 获取实际回答（因为第一次调用只返回了工具调用）
+        console.log("基础题，调用 GPT-4o 获取回答");
+        const basicAnswer = await postChatCompletion({
+          model: "gpt-4o",
+          temperature: 0.2,
+          messages: [...baseMessages, { role: "user", content: userContent }],
+        });
+        answerText = basicAnswer?.choices?.[0]?.message?.content || "";
+        results = [];
+      } else if (isBasic === false) {
+        // 非基础题：转交给 modelToUse
+        console.log(`非基础题，转交给 ${modelToUse}`);
+        const advancedAnswer = await postChatCompletion({
+          model: modelToUse,
+          temperature: 0.2,
+          messages: [...baseMessages, { role: "user", content: userContent }],
+        });
+        answerText = advancedAnswer?.choices?.[0]?.message?.content || "";
+        results = [];
+      } else {
+        // 没有调用难度判断工具，或解析失败：默认使用 GPT-4o 的回答
+        console.log("未调用难度判断工具，默认使用 GPT-4o 的回答");
+        answerText = firstMsg?.content || "";
+        results = [];
+      }
     }
 
     // 存储聊天记录（含识别描述）
