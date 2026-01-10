@@ -276,11 +276,31 @@ async function search_rag(query, topK = 5) {
     .sort((a, b) => b.score - a.score)
     .slice(0, clampTopK(topK));
 
-  return scored.map((s) => ({
-    snippet: (s.content || "").slice(0, 1200),
-    source: s.filename || `文档${s.doc_id}`,
-    score: s.score,
-  }));
+  return scored.map((s) => {
+    // 构建引用来源：书籍名-章节名，如果没有则使用文档名
+    let sourceName = "";
+    if (s.book_title && s.chapter_title) {
+      sourceName = `${s.book_title}-${s.chapter_title}`;
+    } else if (s.book_title) {
+      sourceName = s.book_title;
+    } else if (s.chapter_title) {
+      sourceName = s.chapter_title;
+    } else if (s.filename) {
+      sourceName = s.filename.replace(/\.[^/.]+$/, ""); // 去除扩展名
+    } else {
+      sourceName = `文档${s.doc_id || s.id}`;
+    }
+
+    return {
+      snippet: (s.content || "").slice(0, 1200),
+      source: sourceName,
+      book_title: s.book_title || null,
+      chapter_title: s.chapter_title || null,
+      filename: s.filename || null,
+      doc_id: s.doc_id || null,
+      score: s.score,
+    };
+  });
 }
 
 // Reaxys API 调用
@@ -1010,9 +1030,9 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
     }
 
     // 根据是否有图片选择模型
-    // 如果有图片，使用 gemini-3-pro-preview；如果仅文字，使用 gpt-5.2
+    // 如果有图片，使用 gemini-3-pro-preview；如果仅文字，使用 gpt-5.1（5.2版本容易请求失败）
     const hasImage = !!(imagePath || imageDataUrl);
-    const modelToUse = hasImage ? "gemini-3-pro-preview" : "gpt-5.2";
+    const modelToUse = hasImage ? "gemini-3-pro-preview" : "gpt-5.1";
 
     // 工具定义（让模型决定是否调用 RAG）
     // Reaxys 和联网搜索不在工具列表中，它们会在 RAG 无结果时自动调用
@@ -1322,12 +1342,12 @@ ${contextText}
           .map((originalIdx, newIdx) => {
             const s = results[originalIdx - 1];
             if (!s) return null;
-            const nameWithoutExt = String(s?.source || `文档${originalIdx}`).replace(
-              /\.[^/.]+$/,
-              ""
-            );
+            
+            // 构建引用格式：书籍名-章节名（如果有）
+            let sourceLabel = s?.source || `文档${originalIdx}`;
+            
             const newNum = newIdx + 1; // 新的连续编号从1开始
-            const snippetWithTitle = `[${newNum}]《${nameWithoutExt}》：${String(
+            const snippetWithTitle = `[${newNum}]《${sourceLabel}》：${String(
               s?.snippet || ""
             ).slice(0, 80)}……`;
             return { snippetWithTitle, score: s?.score };

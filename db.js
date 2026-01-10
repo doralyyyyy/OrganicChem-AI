@@ -143,11 +143,23 @@ export function listDocsWithStats() {
 }
 
 export function getAllChunks() {
-  return db
-    .prepare(
-      "SELECT c.id, c.doc_id, c.content, c.embedding, d.filename FROM chunks c LEFT JOIN docs d ON c.doc_id = d.id"
-    )
-    .all();
+  const sql = `
+    SELECT 
+      c.id, 
+      c.doc_id, 
+      c.content, 
+      c.embedding,
+      d.filename,
+      d.chapter_id,
+      ch.title AS chapter_title,
+      ch.book_id,
+      b.title AS book_title
+    FROM chunks c
+    LEFT JOIN docs d ON c.doc_id = d.id
+    LEFT JOIN chapters ch ON d.chapter_id = ch.id
+    LEFT JOIN books b ON ch.book_id = b.id
+  `;
+  return db.prepare(sql).all();
 }
 
 // 获取文档详情
