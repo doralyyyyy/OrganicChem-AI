@@ -1042,13 +1042,13 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
         function: {
           name: "search_rag",
           description:
-            "从本地知识库中检索有关有机化学物质或概念的相关知识。当需要从本地知识库中搜索信息时使用此工具。",
+            "从本地知识库（教材书籍）及网络中检索有机化学有关知识点或化合物性质信息。当需要搜索信息时使用此工具。",
           parameters: {
             type: "object",
             properties: {
               query: {
                 type: "string",
-                description: "要搜索的物质、属性和概念",
+                description: "要搜索的知识点或化合物性质",
               },
             },
             required: ["query"],
