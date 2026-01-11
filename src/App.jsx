@@ -43,7 +43,7 @@ import "katex/contrib/mhchem";
 
 // 界面参数
 const MAX_HISTORY = 50;
-const PANEL_H = "h-[115vh] sm:h-[110vh] md:h-[96vh]"; // 左侧卡片固定高度
+const PANEL_H = "h-[115vh] sm:h-[110vh] md:h-[93vh]"; // 左侧卡片固定高度
 
 function formatDate(ts) {
   try {
@@ -2440,9 +2440,6 @@ h2 { font-size: 16px; margin-top: 18px; }
 
               {/* Reset / Copy / .md / Export */}
               <div className="mt-1">
-                <small className="text-sm text-slate-400">
-                  历史记录保存在本地
-                </small>
                 <div className="mt-2 grid grid-cols-2 sm:grid-cols-2 gap-2">
                   <button
                     onClick={handleReset}
