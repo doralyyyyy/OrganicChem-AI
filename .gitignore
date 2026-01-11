@@ -26,6 +26,7 @@ dist-ssr
 
 # Upload directories
 covers/
+uploads/
 
 # Editor directories and files
 .vscode/*
