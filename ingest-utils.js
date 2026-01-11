@@ -56,10 +56,10 @@ export async function extractTextFromFile(filePath) {
 
 // 有道 Embedding 调用
 let lastEmbedCall = 0; // 全局速率限制
-const MIN_INTERVAL_MS = Number(process.env.YOUDAO_MIN_INTERVAL_MS) || 1200; // 默认 ~0.8 QPS
-const EMBED_TIMEOUT_MS = Number(process.env.EMBED_TIMEOUT_MS) || 20_000;
-const EMBED_MAX_RETRIES = Number(process.env.EMBED_MAX_RETRIES) || 8;
-const EMBED_MAX_BACKOFF_MS = Number(process.env.EMBED_MAX_BACKOFF_MS) || 30_000;
+const MIN_INTERVAL_MS = 1200; // 默认 ~0.8 QPS
+const EMBED_TIMEOUT_MS = 20_000;
+const EMBED_MAX_RETRIES = 8;
+const EMBED_MAX_BACKOFF_MS = 30_000;
 
 function signForYoudao(text, appKey, appSecret) {
   const curtime = Math.floor(Date.now() / 1000).toString();
