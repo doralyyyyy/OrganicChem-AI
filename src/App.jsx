@@ -26,7 +26,8 @@ import {
   LogIn,
   LogOut,
   User,
-  PenTool
+  PenTool,
+  ExternalLink
 } from "lucide-react";
 import Auth from "./Auth.jsx";
 import ChemDrawSelector from "./ChemDrawSelector.jsx";
@@ -1937,6 +1938,38 @@ h2 { font-size: 16px; margin-top: 18px; }
     w.document.write(html);
     w.document.close();
   }
+  function handleViewHTML() {
+    const w = window.open("", "_blank");
+    if (!w) return alert("Allow popups to view HTML");
+
+    const rendered = answerRef.current
+      ? answerRef.current.innerHTML
+      : `<pre>${escapeHtml(answer?.text || "")}</pre>`;
+    const html = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Answer Preview</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<style>
+body { font-family: Arial, Helvetica, sans-serif; padding: 24px; color: #111; }
+pre { white-space: pre-wrap; word-break: break-word; background: #fafafa; padding: 8px; border-radius: 6px; }
+h1 { font-size: 20px; margin: 0 0 8px; }
+h2 { font-size: 16px; margin-top: 18px; }
+.katex .katex-mathml { display: none; }
+@media print { .no-print { display: none; } }
+</style>
+</head>
+<body>
+<h1>Question</h1>
+<pre>${escapeHtml(question)}</pre>
+<h1>Answer</h1>
+<div>${rendered}</div>
+</body>
+</html>`;
+    w.document.write(html);
+    w.document.close();
+  }
   async function handleCopyAnswer() {
     const plain =
       answerRef.current?.innerText?.trim() || answer?.text || "";
@@ -2508,11 +2541,25 @@ h2 { font-size: 16px; margin-top: 18px; }
                 </div>
               )}
               {answer && (
-                <div
-                  ref={answerRef}
-                  className="whitespace-pre-wrap text-sm flex-1 overflow-y-auto pr-1 leading-6"
-                >
-                  <ReactMarkdown
+                <>
+                  {answer.text !== "已取消请求。" && (
+                    <div className="flex justify-end mb-2 flex-shrink-0">
+                      <button
+                        onClick={handleViewHTML}
+                        type="button"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs bg-white hover:bg-gradient-to-r hover:from-cyan-50 hover:to-blue-50 hover:border-cyan-400 shadow-sm hover:shadow-md active:shadow-none transition-all"
+                        title="在新窗口打开HTML版本"
+                        aria-label="在新窗口打开HTML版本"
+                      >
+                        <ExternalLink size={12} /> 放大查看
+                      </button>
+                    </div>
+                  )}
+                  <div
+                    ref={answerRef}
+                    className="whitespace-pre-wrap text-sm flex-1 overflow-y-auto pr-1 leading-6"
+                  >
+                    <ReactMarkdown
                     remarkPlugins={[remarkGfm, remarkMath]}
                     rehypePlugins={[rehypeKatex]}
                     components={{
@@ -2534,7 +2581,8 @@ h2 { font-size: 16px; margin-top: 18px; }
                   >
                     {preprocessMathDelimiters(answer.text || "")}
                   </ReactMarkdown>
-                </div>
+                  </div>
+                </>
               )}
             </div>
 
