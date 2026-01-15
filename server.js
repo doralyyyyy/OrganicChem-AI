@@ -85,10 +85,10 @@ app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 // JWT密钥
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 
-// 认证中间件（可选，某些接口需要）
+// 认证中间件
 function authenticateToken(req, res, next) {
   const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
+  const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
     return res.status(401).json({ error: true, message: "未提供认证令牌" });
@@ -103,7 +103,7 @@ function authenticateToken(req, res, next) {
   }
 }
 
-// 可选认证中间件（有token则验证，没有则跳过）
+// 可选认证中间件
 function optionalAuth(req, res, next) {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
@@ -113,7 +113,6 @@ function optionalAuth(req, res, next) {
       const decoded = jwt.verify(token, JWT_SECRET);
       req.user = decoded;
     } catch (err) {
-      // token无效，但不阻止请求
     }
   }
   next();
@@ -249,9 +248,8 @@ async function recognizeFileContent(filePath, filename) {
     if (!text || !text.trim()) {
       return `文件 ${filename} 内容为空或无法提取文本。`;
     }
-    // 生成文件内容描述（类似图片识别的处理）
-    // 可以限制长度，避免太长
-    const preview = text.slice(0, 5000); // 取前5000字符作为预览
+    // 生成文件内容描述
+    const preview = text.slice(0, 5000);
     return `文件 ${filename} 的内容如下：\n${preview}${text.length > 5000 ? "\n（文件内容较长，已截取前5000字符）" : ""}`;
   } catch (err) {
     console.error("File content extraction failed:", err);
@@ -259,7 +257,7 @@ async function recognizeFileContent(filePath, filename) {
   }
 }
 
-// 简单RAG搜索
+// RAG 搜索
 async function search_rag(query, topK = 5) {
   if (!query) return [];
   const qEmb = await getEmbedding(query);
@@ -314,8 +312,7 @@ async function search_reaxys(query) {
   }
 
   try {
-    // 根据 Reaxys API 文档调整请求格式
-    // 这里是一个通用示例，需要根据实际 API 文档调整
+    // 实际请根据 Reaxys API 文档调整请求格式
     const response = await axios.post(
       apiUrl,
       {
@@ -326,8 +323,6 @@ async function search_reaxys(query) {
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`,
-          // 或者使用 API Key 作为 header，根据实际文档调整
-          // "X-API-Key": apiKey,
         },
         timeout: 30_000,
       }
@@ -335,8 +330,7 @@ async function search_reaxys(query) {
 
     const data = response.data;
     
-    // 解析 Reaxys 返回结果，转换为与 RAG 类似的格式
-    // 需要根据实际 API 返回格式调整
+    // 需要根据实际 API 返回格式调整，解析 Reaxys 返回结果，转换为与 RAG 类似的格式
     if (data && (data.results || data.data || data.hits)) {
       const results = data.results || data.data || data.hits || [];
       if (Array.isArray(results) && results.length > 0) {
@@ -365,7 +359,7 @@ async function search_web(query) {
   }
 
   try {
-    // 使用 Tavily API（专门为 AI 设计的搜索 API）
+    // 使用 Tavily API
     const response = await axios.post(
       "https://api.tavily.com/search",
       {
@@ -418,7 +412,7 @@ async function search_web(query) {
   } catch (err) {
     console.error("Web search API error:", err?.response?.data || err?.message || err);
     
-    // 如果 Tavily 失败，尝试其他搜索 API（Serper）
+    // 如果 Tavily 额度不足，尝试 Serper
     if (process.env.SERPER_API_KEY) {
       try {
         const serperResponse = await axios.post(
@@ -453,7 +447,7 @@ async function search_web(query) {
   }
 }
 
-// 上传并导入文档（支持指定章节ID）
+// 上传并导入文档
 app.post("/api/ingest", upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: true, message: "Missing file" });
 
@@ -491,7 +485,7 @@ app.post("/api/ingest", upload.single("file"), async (req, res) => {
   }
 });
 
-// 列出已导入文档（调试用）
+// 列出已导入文档
 app.get("/api/docs", (req, res) => {
   try {
     const docs = listDocs();
@@ -511,7 +505,7 @@ app.get("/api/docs/stats", (req, res) => {
   }
 });
 
-// 文档详情（含全文）+ chunk 计数
+// 文档详情 + chunk 计数
 app.get("/api/doc/:id", (req, res) => {
   try {
     const id = req.params.id;
@@ -553,7 +547,7 @@ app.delete("/api/chunk/:id", (req, res) => {
   }
 });
 
-// 删除整个文档（及所有 chunks）
+// 删除整个文档及所有 chunks）
 app.delete("/api/doc/:id", verifyDeletePassword, (req, res) => {
   try {
     const id = req.params.id;
@@ -627,7 +621,7 @@ app.post("/api/books", (req, res, next) => {
   }
 });
 
-// 更新书籍（书名和封面）
+// 更新书籍
 app.put("/api/book/:id", (req, res, next) => {
   upload.fields([{ name: "cover", maxCount: 1 }])(req, res, (err) => {
     if (err) {
@@ -639,7 +633,6 @@ app.put("/api/book/:id", (req, res, next) => {
 }, async (req, res) => {
   try {
     const id = req.params.id;
-    // multer处理multipart/form-data时，文本字段在req.body中
     const title = req.body?.title;
     const book = getBookById(id);
     if (!book) {
@@ -687,11 +680,11 @@ app.put("/api/book/:id", (req, res, next) => {
   }
 });
 
-// 删除书籍（需要密码验证）
+// 删除书籍
 app.delete("/api/book/:id", verifyDeletePassword, (req, res) => {
   try {
     const id = req.params.id;
-    // 先获取书籍信息（用于删除封面）
+    // 先获取书籍信息
     const book = getBookById(id);
     if (!book) return res.status(404).json({ ok: false, message: "Book not found" });
 
@@ -701,7 +694,7 @@ app.delete("/api/book/:id", verifyDeletePassword, (req, res) => {
       fsp.unlink(coverPath).catch(() => {});
     }
 
-    // 删除书籍（级联删除章节、文档、分块）
+    // 删除书籍
     const deleted = deleteBook(id);
     if (!deleted) return res.status(404).json({ ok: false, message: "Book not found" });
 
@@ -767,7 +760,7 @@ app.post("/api/chapters", async (req, res) => {
   }
 });
 
-// 更新章节（标题和排序）
+// 更新章节
 app.put("/api/chapter/:id", async (req, res) => {
   try {
     const id = req.params.id;
@@ -786,7 +779,7 @@ app.put("/api/chapter/:id", async (req, res) => {
   }
 });
 
-// 删除章节（需要密码验证）
+// 删除章节
 app.delete("/api/chapter/:id", verifyDeletePassword, (req, res) => {
   try {
     const id = req.params.id;
@@ -816,7 +809,7 @@ app.get("/api/chapter/:id/chunks", (req, res) => {
   }
 });
 
-// 删除单个 chunk（需要密码验证）
+// 删除单个 chunk
 app.delete("/api/chunk/:id", verifyDeletePassword, (req, res) => {
   try {
     const id = req.params.id;
@@ -828,7 +821,7 @@ app.delete("/api/chunk/:id", verifyDeletePassword, (req, res) => {
   }
 });
 
-// 检索接口（调试用）
+// 检索接口
 app.post("/api/search", async (req, res) => {
   const { query, topK = 5 } = req.body || {};
   if (!query) return res.status(400).json({ error: true, message: "Missing query" });
@@ -860,7 +853,7 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
   let fileInfo = req.files?.file?.[0] || null;
   let results = [];
 
-  // 从答案里提取被引用的编号顺序（只统计 $^{[1][2]}$ 里的数字，支持如[1-3]的范围版本）
+  // 从答案里提取被引用的编号顺序
   function extractCitationOrder(answer, maxIndex) {
     if (!answer || !maxIndex) return [];
     const order = [];
@@ -905,7 +898,7 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
     const questionRaw = req.body?.question;
     const question = typeof questionRaw === "string" ? questionRaw.trim() : "";
     
-    // 从token中获取user_id，如果没有则使用session_id（兼容旧版本）
+    // 从token中获取user_id，如果没有则使用session_id
     const authHeader = req.headers["authorization"];
     const token = authHeader && authHeader.split(" ")[1];
     let user_id = null;
@@ -927,7 +920,7 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
         .json({ error: true, message: "Missing question, image or file" });
     }
 
-    // 如有图片，先做识别（用于数据库记录；不直接发给模型）
+    // 如有图片，先做识别，用于数据库记录，不直接发给模型
     let imageDescription = "";
     if (imagePath) {
       try {
@@ -940,7 +933,7 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
       }
     }
 
-    // 如有文件，先提取文本内容（用于数据库记录）
+    // 如有文件，先提取文本内容
     let fileDescription = "";
     if (filePath && fileInfo) {
       try {
@@ -968,7 +961,7 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
       fullQuestion = fullQuestion ? `${fullQuestion}\n${fileDescription}` : fileDescription;
     }
 
-    // 近期对话历史（用于保持上下文）
+    // 近期对话历史
     const history =
       (getChats(session_id, 10, user_id) || []).map((h) => ({
         role: h.role,
@@ -997,7 +990,7 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
       imageDataUrl = `data:${m};base64,${b64}`;
     }
 
-    // 提取文件完整内容（用于API调用）
+    // 提取文件完整内容
     let fileContent = "";
     if (filePath) {
       try {
@@ -1007,7 +1000,7 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
       }
     }
 
-    // 用户内容（支持图文和文件）
+    // 用户内容
     const userContent = [];
     
     // 构建文本部分
@@ -1035,7 +1028,6 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
     const modelToUse = hasImage ? "gemini-3-pro-preview" : "gpt-5.1";
 
     // 工具定义（让模型决定是否调用 RAG 和判断难度）
-    // Reaxys 和联网搜索不在工具列表中，它们会在 RAG 无结果时自动调用
     const tools = [
       {
         type: "function",
@@ -1076,7 +1068,6 @@ app.post("/api/solve", upload.fields([{ name: "image", maxCount: 1 }, { name: "f
     ];
 
     // 第一次调用：使用支持视觉且反应快速的模型
-    // 添加临时系统提示，要求同时调用两个工具（不影响 baseMessages）
     const firstCallMessages = [
       ...baseMessages,
       {
@@ -1198,7 +1189,7 @@ ${contextText}
         return isRelevant;
       } catch (err) {
         console.error(`Relevance check error for ${sourceName}:`, err?.message || err);
-        // 如果判断失败，默认认为不相关（更保守的策略）
+        // 如果判断失败，默认认为不相关
         return false;
       }
     }
@@ -1265,7 +1256,7 @@ ${contextText}
     if (ragCall) {
       console.log("RAG Called, proceeding with RAG regardless of difficulty");
       
-      // 如果同时调用了难度判断工具，记录结果（但不影响 RAG 执行）
+      // 如果同时调用了难度判断工具，也记录结果
       if (difficultyCall) {
         const isBasic = extractDifficultyFromToolCall(difficultyCall);
         console.log(`同时进行了难度判断: ${isBasic ? "基础题" : "非基础题"}（但会优先执行 RAG）`);
@@ -1344,7 +1335,7 @@ ${contextText}
       }
       
       if (isBasic === true) {
-        // 基础题：再次调用 GPT-4o 获取实际回答（因为第一次调用只返回了工具调用）
+        // 基础题：再次调用 GPT-4o 获取实际回答
         console.log("基础题，调用 GPT-4o 获取回答");
         const basicAnswer = await postChatCompletion({
           model: "gpt-4o",
@@ -1375,7 +1366,7 @@ ${contextText}
     insertChat(session_id, "user", fullQuestion || "", user_id);
     insertChat(session_id, "assistant", answerText || "", user_id);
 
-    // 仅返回"答案中实际引用过"的 sources（按首次出现顺序），并重新编号为连续编号
+    // 仅返回"答案中实际引用过"的 sources，并重新编号为连续编号
     let sources = [];
     let finalAnswerText = answerText;
     if (results && results.length && answerText) {
@@ -1436,7 +1427,7 @@ ${contextText}
             const s = results[originalIdx - 1];
             if (!s) return null;
             
-            // 构建引用格式：书籍名-章节名（如果有）
+            // 构建引用格式：书籍名-章节名
             let sourceLabel = s?.source || `文档${originalIdx}`;
             
             const newNum = newIdx + 1; // 新的连续编号从1开始
@@ -1447,7 +1438,7 @@ ${contextText}
           })
           .filter(Boolean);
       } else {
-        // 若未检测到任何引用，则不返回 sources（保持空数组）
+        // 若未检测到任何引用，则不返回 sources
         sources = [];
       }
     }
@@ -1713,17 +1704,17 @@ app.get("/api/history", optionalAuth, async (req, res) => {
       return res.json({ ok: true, history: [] });
     }
 
-    // 获取用户的所有对话记录，按时间正序（从旧到新）
-    const chats = getChats(`user_${user_id}`, limit * 2, user_id); // 获取更多，因为需要配对
+    // 获取用户的所有对话记录，按时间正序
+    const chats = getChats(`user_${user_id}`, limit * 2, user_id);
     
-    // 将对话记录转换为历史记录格式（成对的 user-assistant）
+    // 将对话记录转换为历史记录格式
     const history = [];
     let currentPair = null;
     
     // 按时间顺序处理，将user和assistant配对
     for (const chat of chats) {
       if (chat.role === "user") {
-        // 如果有未完成的pair，先保存（上一个问题没有答案的情况）
+        // 如果有未完成的pair，先保存
         if (currentPair) {
           history.push(currentPair);
         }
@@ -1756,7 +1747,7 @@ app.get("/api/history", optionalAuth, async (req, res) => {
       history.push(currentPair);
     }
 
-    // 反转，最新的在前（因为数据库返回的是从旧到新）
+    // 反转，最新的在前
     res.json({ ok: true, history: history.reverse() });
   } catch (err) {
     console.error("Get history error:", err);
@@ -1764,7 +1755,7 @@ app.get("/api/history", optionalAuth, async (req, res) => {
   }
 });
 
-// 清空历史记录接口（需要认证）
+// 清空历史记录接口
 app.post("/api/clear", optionalAuth, async (req, res) => {
   try {
     const { session_id } = req.body || {};

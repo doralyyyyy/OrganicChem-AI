@@ -70,7 +70,6 @@ function escapeHtml(str = "") {
 }
 
 // 化学主题加载动画
-// 支持优先使用 /anim/ai-loader.gif（若存在），否则回退到内联 SVG 动画
 function AnimatedLoader({ label = "系统正在检索答案…", size = 160, imgSrc = "/anim/ai-loader.gif" }) {
   const [useImg, setUseImg] = React.useState(true);
   return (
@@ -479,7 +478,7 @@ function DocumentManager({ onClose, onUploadChapter }) {
     const [removed] = newChapters.splice(sourceIndex, 1);
     newChapters.splice(destinationIndex, 0, removed);
     
-    // 更新所有章节的order_index（不设置loading，避免UI卡顿）
+    // 更新所有章节的order_index
     try {
       const updatePromises = newChapters.map(async (chapter, index) => {
         const res = await fetch(`${API}/api/chapter/${chapter.id}`, {
@@ -519,7 +518,6 @@ function DocumentManager({ onClose, onUploadChapter }) {
 
   useEffect(() => {
     fetchBooks();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filteredBooks = useMemo(() => {
@@ -569,7 +567,7 @@ function DocumentManager({ onClose, onUploadChapter }) {
   }
 
   function getCoverUrl(coverPath) {
-    if (!coverPath) return null; // 返回null，使用CSS占位符
+    if (!coverPath) return null;
     if (coverPath.startsWith("http")) return coverPath;
     return `${API}${coverPath}`;
   }
@@ -1010,7 +1008,6 @@ function DocumentManager({ onClose, onUploadChapter }) {
           }}
           onSubmit={async (title) => {
             if (!title.trim() || !pendingChapterFile) return;
-            // 先关闭模态框
             const file = pendingChapterFile;
             setShowChapterTitleModal(false);
             setPendingChapterFile(null);
@@ -1023,7 +1020,6 @@ function DocumentManager({ onClose, onUploadChapter }) {
               });
               const data = await res.json();
               if (data?.ok && data.chapter) {
-                // 立即开始上传，不等待
                 handleChapterUpload(data.chapter.id, file);
               } else {
                 setMessage(data?.message || "创建章节失败");
@@ -1437,7 +1433,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const [image, setImage] = useState(null);
-  const [file, setFile] = useState(null); // 用于存储文件（非图片）
+  const [file, setFile] = useState(null);
   const [smilesError, setSmilesError] = useState("");
   const [docMgrOpen, setDocMgrOpen] = useState(false);
 
@@ -1454,8 +1450,8 @@ function App() {
   const answerRef = useRef(null);
 
   const [dragActive, setDragActive] = useState(false);
-  const [inputDragActive, setInputDragActive] = useState(false); // 输入框区域的拖拽状态
-  const [uploadAreaDragActive, setUploadAreaDragActive] = useState(false); // 上传按钮区域的拖拽状态
+  const [inputDragActive, setInputDragActive] = useState(false);
+  const [uploadAreaDragActive, setUploadAreaDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
   const allowedDocTypes = useMemo(
@@ -1468,7 +1464,7 @@ function App() {
     []
   );
 
-  const fileInputRef = useRef(null); // 用于重置文件输入
+  const fileInputRef = useRef(null);
 
   const [feedback, setFeedback] = useState("");
   const [feedbackMsg, setFeedbackMsg] = useState("");
@@ -1489,16 +1485,13 @@ function App() {
   });
   const [showAuth, setShowAuth] = useState(false);
 
-  // Abort controller
   const requestControllerRef = useRef(null);
-  // speech
   const recognitionRef = useRef(null);
-  // smiles-drawer readiness
   const [smilesLibReady, setSmilesLibReady] = useState(
     typeof window !== "undefined" && !!window.SmilesDrawer
   );
 
-  // session id（兼容旧版本，如果已登录则使用user_id）
+  // Session ID 处理
   const session_id = useMemo(() => {
     if (user) {
       return `user_${user.id}`;
@@ -1547,10 +1540,9 @@ function App() {
     localStorage.removeItem("oc_history_v1");
   }
 
-  // 保存历史记录到localStorage（但登录用户优先使用服务器数据）
+  // 未登录用户保存历史记录到 localStorage
   useEffect(() => {
     if (!user) {
-      // 未登录用户才保存到localStorage
       localStorage.setItem("oc_history_v1", JSON.stringify(history));
     }
   }, [history, user]);
@@ -1578,7 +1570,7 @@ function App() {
     }
   }, [user, token]);
 
-  // dynamic load SmilesDrawer
+  // SMILES Drawer 动态加载
   useEffect(() => {
     if (smilesLibReady) return;
     const existed = document.querySelector(
@@ -1595,7 +1587,7 @@ function App() {
     document.head.appendChild(script);
   }, [smilesLibReady]);
 
-  // image preview
+  // 图片预览
   const imagePreviewURL = useMemo(() => {
     if (!image) return null;
     return URL.createObjectURL(image);
@@ -1611,7 +1603,7 @@ function App() {
     return file && file.type && file.type.startsWith("image/");
   };
 
-  // upload docs
+  // 上传文档
   async function handleUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1648,7 +1640,7 @@ function App() {
     }
   }
 
-  // speech
+  // 语音输入
   function handleVoiceInput() {
     if (!("webkitSpeechRecognition" in window)) {
       alert("你的浏览器不支持语音识别，请使用最新版 Chrome");
@@ -1680,7 +1672,7 @@ function App() {
     };
   }
 
-  // 处理文件选择（图片或文件）
+  // 处理文件选择
   function handleFileSelect(selectedFile) {
     if (!selectedFile) {
       setImage(null);
@@ -1774,7 +1766,7 @@ function App() {
     const cd = e.clipboardData;
     if (!cd) return;
 
-    // 1) 直接从剪贴板的 file/items 里找图片（优先）
+    // 1) 直接从剪贴板的 file/items 里找图片
     const items = Array.from(cd.items || []);
     const fileItem = items.find(it => it.kind === "file" && it.type && it.type.startsWith("image/"));
     if (fileItem) {
@@ -1791,7 +1783,7 @@ function App() {
       return;
     }
 
-    // 2) 兜底：从 HTML 里找 <img src="..."> 并抓取（可能受 CORS 限制）
+    // 2) 从 HTML 里找 <img src="..."> 并抓取
     const html = cd.getData("text/html");
     if (html) {
       try {
@@ -1816,7 +1808,7 @@ function App() {
     }
   }
 
-  // submit / cancel
+  // 提交 / 取消
   async function handleSubmit(e) {
     e?.preventDefault();
     if (!question.trim() && !image && !file) return;
@@ -1904,7 +1896,7 @@ function App() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  // export / copy / download
+  // 导出 / 复制 / 下载
   function handleExport() {
     const w = window.open("", "_blank");
     if (!w) return alert("Allow popups to export");
@@ -1987,7 +1979,7 @@ h2 { font-size: 16px; margin-top: 18px; }
     URL.revokeObjectURL(url);
   }
 
-  // clear history
+  // 清空历史
   async function handleClearHistory() {
     setHistory([]);
     localStorage.removeItem("oc_history_v1");
@@ -2010,7 +2002,7 @@ h2 { font-size: 16px; margin-top: 18px; }
     }
   }
 
-  // feedback
+  // 反馈
   async function handleFeedback() {
     if (!feedback.trim()) {
       setFeedbackMsg("请输入反馈内容");
@@ -2042,7 +2034,7 @@ h2 { font-size: 16px; margin-top: 18px; }
     }
   }
 
-  // SMILES 渲染 —— 即时（无防抖）+ 高清 DPR
+  // SMILES 渲染
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -2091,7 +2083,7 @@ h2 { font-size: 16px; margin-top: 18px; }
       top: Math.random() * 100,
       left: Math.random() * 100,
     }));
-  }, []); // 空依赖数组，只在组件挂载时计算一次
+  }, []);
 
   // UI
   return (

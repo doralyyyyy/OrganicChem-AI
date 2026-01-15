@@ -49,14 +49,13 @@ export async function extractTextFromFile(filePath) {
     const result = await mammoth.extractRawText({ path: filePath });
     return sanitizeText(result.value || "");
   } else {
-    // txt/markdown/其他纯文本
     return sanitizeText(fs.readFileSync(filePath, { encoding: "utf8" }));
   }
 }
 
 // 有道 Embedding 调用
 let lastEmbedCall = 0; // 全局速率限制
-const MIN_INTERVAL_MS = 1200; // 默认 ~0.8 QPS
+const MIN_INTERVAL_MS = 1200;
 const EMBED_TIMEOUT_MS = 20_000;
 const EMBED_MAX_RETRIES = 8;
 const EMBED_MAX_BACKOFF_MS = 30_000;
@@ -83,15 +82,11 @@ function shouldRetryYoudao(err, data) {
   if (http === 429) return true;            // HTTP 限流
   if (!http && err?.code === "ECONNABORTED") return true; // 超时
   if (http >= 500) return true;             // 服务端波动
-  // 有道错误码：411/412/… 常见限流/余额问题
   if (code === "411" || code === "412" || code === "500") return true;
   return false;
 }
 
 function pickEmbeddingVector(item) {
-  // 兼容几种返回结构：
-  // 1) item 为数组: [0.1, 0.2, ...]
-  // 2) item.embedding / item.vector / item.values 为数组
   if (!item) return null;
   if (Array.isArray(item)) return item;
   if (Array.isArray(item.embedding)) return item.embedding;
@@ -107,7 +102,7 @@ async function youdaoEmbeddingWithRetry(text) {
     throw new Error("YOUDAO_APP_KEY / YOUDAO_APP_SECRET 未配置");
   }
 
-  // 全局最小间隔（QPS 限制）
+  // 全局最小间隔
   const since = Date.now() - lastEmbedCall;
   if (since < MIN_INTERVAL_MS) {
     await sleep(MIN_INTERVAL_MS - since);
@@ -156,11 +151,11 @@ async function youdaoEmbeddingWithRetry(text) {
         );
       }
 
-      // 指数退避 + 抖动
+      // 指数退避
       const base = Math.min(EMBED_MAX_BACKOFF_MS, 1000 * 2 ** (attempt - 1));
       const jitter = Math.floor(Math.random() * 400);
       const delay = Math.max(MIN_INTERVAL_MS, base + jitter);
-      // 为 411（qps/balance）错误再额外增加缓冲
+      // 为 411 错误再额外增加缓冲
       const extra = data?.errorCode === "411" ? 1200 : 0;
 
       const wait = delay + extra;
@@ -173,14 +168,14 @@ async function youdaoEmbeddingWithRetry(text) {
   }
 }
 
-// 对外导出：获取单段文本的 embedding
+// 对外导出
 export async function getEmbedding(text) {
   const s = sanitizeText(text || "");
   if (!s) return [];
   return youdaoEmbeddingWithRetry(s);
 }
 
-// 主流程：文件入库 + 向量化
+// 主流程
 export async function ingestFileToDB(
   filePath,
   filename,
@@ -202,7 +197,7 @@ export async function ingestFileToDB(
     const emb = await getEmbedding(c);
 
     const chunkId = uuidv4();
-    // 仅传原始数组，避免二次 stringify
+    // 仅传原始数组
     insertChunk(chunkId, docId, c, emb);
 
     i++;

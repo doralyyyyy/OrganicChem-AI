@@ -7,7 +7,7 @@ const API = import.meta.env.VITE_API_BASE;
 function Auth({ onClose, onLogin }) {
   const [mode, setMode] = useState("login"); // 'login' | 'register' | 'login-code'
   const [loading, setLoading] = useState(false);
-  const [sendingCode, setSendingCode] = useState(false); // 发送验证码的独立加载状态
+  const [sendingCode, setSendingCode] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [countdown, setCountdown] = useState(0);
 

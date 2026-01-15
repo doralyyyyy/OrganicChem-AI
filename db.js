@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS docs (
 );
 `).run();
 
-// 兼容旧数据：添加chapter_id列（如果不存在）
+// 兼容旧数据
 try {
   db.prepare("ALTER TABLE docs ADD COLUMN chapter_id TEXT").run();
 } catch (err) {
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS chats (
 );
 `).run();
 
-// 添加 user_id 列（如果不存在）- SQLite 不支持直接检查列是否存在
+// 添加 user_id 列
 try {
   db.prepare("ALTER TABLE chats ADD COLUMN user_id INTEGER").run();
 } catch (err) {
@@ -174,7 +174,7 @@ export function countChunksForDoc(doc_id) {
   return row?.n || 0;
 }
 
-// 附带 created_at，embedding 保持返回，兼容之前用途
+// 附带 created_at，embedding 保持返回
 export function getChunksByDoc(doc_id) {
   return db
     .prepare("SELECT id, doc_id, content, embedding, created_at FROM chunks WHERE doc_id = ? ORDER BY created_at ASC, id ASC")
@@ -249,7 +249,7 @@ export function cleanupExpiredCodes() {
   db.prepare("DELETE FROM verification_codes WHERE expires_at < ?").run(Date.now());
 }
 
-// 对话记忆方法（兼容旧版本，优先使用user_id）
+// 对话记忆方法
 export function insertChat(session_id, role, content, user_id = null) {
   const stmt = db.prepare("INSERT INTO chats (session_id, user_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)");
   stmt.run(session_id, user_id, role, content, Date.now());
@@ -320,7 +320,7 @@ export function listBooksWithStats() {
 }
 
 export function deleteBook(bookId) {
-  // 手动删除相关的 chunks（因为 chunks 表没有外键约束）
+  // 手动删除相关的 chunks
   const delChunks = db.prepare(`
     DELETE FROM chunks 
     WHERE doc_id IN (
@@ -330,7 +330,7 @@ export function deleteBook(bookId) {
     )
   `).run(bookId).changes || 0;
   
-  // 删除书籍（会级联删除章节和文档）
+  // 删除书籍
   const info = db.prepare("DELETE FROM books WHERE id = ?").run(bookId);
   return info.changes > 0;
 }
@@ -362,25 +362,25 @@ export function getChaptersByBook(bookId) {
 }
 
 export function deleteChapter(chapterId) {
-  // 手动删除相关的 chunks（因为 chunks 表没有外键约束）
+  // 手动删除相关的 chunks
   const delChunks = db.prepare(`
     DELETE FROM chunks 
     WHERE doc_id IN (SELECT id FROM docs WHERE chapter_id = ?)
   `).run(chapterId).changes || 0;
   
-  // 删除章节（会级联删除文档）
+  // 删除章节
   const info = db.prepare("DELETE FROM chapters WHERE id = ?").run(chapterId);
   return info.changes > 0;
 }
 
-// 更新文档的chapter_id（用于兼容旧数据或上传新章节）
+// 更新文档的chapter_id
 export function updateDocChapter(docId, chapterId) {
   const stmt = db.prepare("UPDATE docs SET chapter_id = ? WHERE id = ?");
   const info = stmt.run(chapterId, docId);
   return info.changes > 0;
 }
 
-// 获取章节的文档（一个章节对应一个文档）
+// 获取章节的文档
 export function getDocByChapter(chapterId) {
   return db.prepare("SELECT id, chapter_id, filename, text, created_at FROM docs WHERE chapter_id = ?").get(chapterId);
 }
