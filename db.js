@@ -252,7 +252,8 @@ export function cleanupExpiredCodes() {
 // 对话记忆方法
 export function insertChat(session_id, role, content, user_id = null) {
   const stmt = db.prepare("INSERT INTO chats (session_id, user_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)");
-  stmt.run(session_id, user_id, role, content, Date.now());
+  const info = stmt.run(session_id, user_id, role, content, Date.now());
+  return Number(info.lastInsertRowid);
 }
 
 export function getChats(session_id, limit = 20, user_id = null) {
@@ -277,6 +278,38 @@ export function clearChats(session_id, user_id = null) {
   const stmt = db.prepare("DELETE FROM chats WHERE session_id=?");
   const info = stmt.run(session_id);
   return info.changes;
+}
+
+export function deleteHistoryPair(userChatId = null, assistantChatId = null, session_id = null, user_id = null) {
+  const ids = [userChatId, assistantChatId]
+    .map((v) => Number(v))
+    .filter((v, i, arr) => Number.isInteger(v) && v > 0 && arr.indexOf(v) === i);
+
+  if (ids.length === 0) return 0;
+
+  if (user_id) {
+    const delByUser = db.prepare("DELETE FROM chats WHERE id = ? AND user_id = ?");
+    const tx = db.transaction((chatIds) => {
+      let total = 0;
+      for (const chatId of chatIds) {
+        total += delByUser.run(chatId, user_id).changes;
+      }
+      return total;
+    });
+    return tx(ids);
+  }
+
+  if (!session_id) return 0;
+
+  const delBySession = db.prepare("DELETE FROM chats WHERE id = ? AND session_id = ? AND user_id IS NULL");
+  const tx = db.transaction((chatIds) => {
+    let total = 0;
+    for (const chatId of chatIds) {
+      total += delBySession.run(chatId, session_id).changes;
+    }
+    return total;
+  });
+  return tx(ids);
 }
 
 // 书籍相关方法

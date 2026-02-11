@@ -23,6 +23,7 @@ import {
   insertChat,
   getChats,
   clearChats,
+  deleteHistoryPair,
   listDocsWithStats,
   getDocById,
   getChunksByDoc,
@@ -1363,8 +1364,8 @@ ${contextText}
     }
 
     // 存储聊天记录（含识别描述）
-    insertChat(session_id, "user", fullQuestion || "", user_id);
-    insertChat(session_id, "assistant", answerText || "", user_id);
+    const userChatId = insertChat(session_id, "user", fullQuestion || "", user_id);
+    const assistantChatId = insertChat(session_id, "assistant", answerText || "", user_id);
 
     // 仅返回"答案中实际引用过"的 sources，并重新编号为连续编号
     let sources = [];
@@ -1444,10 +1445,13 @@ ${contextText}
     }
 
     return res.json({
-      id: Date.now(),
+      id: userChatId || Date.now(),
       query: question || "",
       text: finalAnswerText || "",
       sources,
+      userChatId,
+      assistantChatId,
+      localTs: Date.now(),
     });
   } catch (err) {
     console.error("Solve error:", err?.response?.data || err?.message || err);
@@ -1722,12 +1726,15 @@ app.get("/api/history", optionalAuth, async (req, res) => {
           query: chat.content,
           text: "",
           id: chat.id || Date.now(),
+          userChatId: chat.id || null,
+          assistantChatId: null,
           localTs: chat.created_at || Date.now(),
         };
       } else if (chat.role === "assistant") {
         if (currentPair) {
           // 有对应的问题，配对成功
           currentPair.text = chat.content;
+          currentPair.assistantChatId = chat.id || null;
           history.push(currentPair);
           currentPair = null;
         } else {
@@ -1736,6 +1743,8 @@ app.get("/api/history", optionalAuth, async (req, res) => {
             query: "",
             text: chat.content,
             id: chat.id || Date.now(),
+            userChatId: null,
+            assistantChatId: chat.id || null,
             localTs: chat.created_at || Date.now(),
           });
         }
@@ -1751,6 +1760,38 @@ app.get("/api/history", optionalAuth, async (req, res) => {
     res.json({ ok: true, history: history.reverse() });
   } catch (err) {
     console.error("Get history error:", err);
+    res.status(500).json({ error: true, message: err.message || String(err) });
+  }
+});
+
+// 删除单条历史记录接口
+app.delete("/api/history/item", optionalAuth, async (req, res) => {
+  try {
+    const user_id = req.user?.userId || null;
+    const { session_id, userChatId, assistantChatId } = req.body || {};
+
+    const parseChatId = (value) => {
+      const n = Number(value);
+      return Number.isInteger(n) && n > 0 ? n : null;
+    };
+
+    const parsedUserChatId = parseChatId(userChatId);
+    const parsedAssistantChatId = parseChatId(assistantChatId);
+
+    if (!parsedUserChatId && !parsedAssistantChatId) {
+      return res.status(400).json({ ok: false, message: "Missing valid history chat id" });
+    }
+    if (!user_id && !session_id) {
+      return res.status(400).json({ ok: false, message: "Missing session_id for anonymous user" });
+    }
+
+    const deleted = deleteHistoryPair(parsedUserChatId, parsedAssistantChatId, session_id, user_id);
+    if (!deleted) {
+      return res.status(404).json({ ok: false, message: "History item not found" });
+    }
+    res.json({ ok: true, deleted });
+  } catch (err) {
+    console.error("Delete history item error:", err);
     res.status(500).json({ error: true, message: err.message || String(err) });
   }
 });
