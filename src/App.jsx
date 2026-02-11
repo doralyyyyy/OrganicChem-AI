@@ -45,7 +45,7 @@ import "katex/contrib/mhchem";
 
 // 界面参数
 const MAX_HISTORY = 50;
-const PANEL_H = "h-[115vh] sm:h-[110vh] md:h-[93vh]"; // 左侧卡片固定高度
+const PANEL_H = "h-[115vh] sm:h-[110vh] md:h-[95vh]"; // 左侧卡片固定高度
 
 function formatDate(ts) {
   try {
@@ -1194,18 +1194,28 @@ h2 { font-size: 16px; margin-top: 18px; }
                 <span>⚗️</span>
                 <span>SMILES 可视化</span>
               </label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center flex-wrap">
                 <input
                   value={smiles}
                   onChange={(e) => setSmiles(e.target.value)}
-                  className="flex-1 p-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-inset focus:border-green-500"
+                  className="flex-1 min-w-0 p-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-inset focus:border-green-500"
                   placeholder="CCO 或 c1ccccc1"
                   aria-label="SMILES 输入"
                 />
                 <button
                   type="button"
+                  onClick={() => window.open(`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(smiles.trim())}&input_type=smiles`, "_blank", "noopener,noreferrer")}
+                  disabled={!smiles.trim() || !!smilesError}
+                  className="px-3 py-3 rounded-md border hover:bg-slate-50 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={smiles.trim() && !smilesError ? "在 PubChem 中查看物化性质、谱学信息等" : "请输入正确的 SMILES 式后可点击"}
+                  aria-label="查看化合物详情"
+                >
+                  <Search size={14} />
+                </button>
+                <button
+                  type="button"
                   onClick={() => setSmiles("")}
-                  className="px-3 py-2 rounded-md border hover:bg-slate-50"
+                  className="px-3 py-3 rounded-md border hover:bg-slate-50 shrink-0"
                   title="清空 SMILES"
                   aria-label="清空 SMILES"
                 >
