@@ -1144,8 +1144,9 @@ function DocumentManager({ onClose, onUploadChapter }) {
                       return (
                         <div
                           key={c.id}
-                          draggable
+                          draggable={editingChapter?.id !== c.id}
                           onDragStart={(e) => {
+                            if (editingChapter?.id === c.id) return;
                             setDraggedChapterIndex(originalIndex);
                             e.dataTransfer.effectAllowed = "move";
                           }}
@@ -1163,9 +1164,9 @@ function DocumentManager({ onClose, onUploadChapter }) {
                           onDragEnd={() => {
                             setDraggedChapterIndex(null);
                           }}
-                          className={`border rounded-lg p-4 bg-white hover:shadow-sm transition-shadow cursor-move ${
-                            draggedChapterIndex === originalIndex ? "opacity-50" : ""
-                          }`}
+                          className={`border rounded-lg p-4 bg-white hover:shadow-sm transition-shadow ${
+                            editingChapter?.id === c.id ? "" : "cursor-move"
+                          } ${draggedChapterIndex === originalIndex ? "opacity-50" : ""}`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1">
