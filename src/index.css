@@ -1,6 +1,6 @@
 :root {
   color: #213547;
-  background-color: #ffffff;
+  background-color: transparent;
 
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -15,10 +15,16 @@
 a { text-decoration: inherit; }
 a:hover { text-decoration: underline; }
 
+html {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  min-height: 100%;
+  /* 白紫渐变统一铺满，避免 fixed 导致的滚动缝隙和左右色差 */
+  background: linear-gradient(180deg, #ffffff 0%, rgba(238, 242, 255, 0.35) 50%, #f8fafc 100%);
 }
 
 @tailwind base;

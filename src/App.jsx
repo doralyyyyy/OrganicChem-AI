@@ -852,7 +852,7 @@ h2 { font-size: 16px; margin-top: 18px; }
 
   // UI
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-indigo-50/30 to-slate-50 p-3 sm:p-6 flex justify-center text-center relative overflow-hidden">
+    <div className="min-h-screen p-3 sm:p-6 flex justify-center text-center relative overflow-hidden">
       {/* 背景粒子装饰 */}
       <div className="background-particles">
         {particlePositions.map((pos, i) => (
@@ -1387,7 +1387,7 @@ h2 { font-size: 16px; margin-top: 18px; }
                   <div className="text-xs text-slate-400 mt-1">开始提问后，历史记录将显示在这里</div>
                 </div>
               )}
-              <div className="flex-1 flex flex-col gap-2 overflow-y-auto pr-1 min-h-0 overflow-x-hidden">
+              <div className="flex-1 flex flex-col gap-2 overflow-y-auto pr-1 min-h-0 overflow-x-hidden pt-2">
                 {history
                   .filter(
                     (h) =>
