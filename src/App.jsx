@@ -572,7 +572,10 @@ function App() {
 
       if (data.sources && data.sources.length > 0) {
         const references = data.sources
-          .map((s) => s.snippetWithTitle)
+          .map((s) => {
+            const base = s.snippetWithTitle;
+            return s.url ? `${base} [访问链接](${s.url})` : base;
+          })
           .join("\n\n");
         data.text = (data.text || "") + `\n\n**引用来源：**\n\n${references}`;
       }
@@ -1339,6 +1342,19 @@ h2 { font-size: 16px; margin-top: 18px; }
                           >
                             <code>{children}</code>
                           </pre>
+                        );
+                      },
+                      a({ href, children, ...props }) {
+                        return (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline"
+                            {...props}
+                          >
+                            {children}
+                          </a>
                         );
                       },
                     }}

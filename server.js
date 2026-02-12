@@ -399,6 +399,7 @@ async function search_web(query) {
               snippet: item.content.slice(0, 1200),
               source: item.title || item.url || "网络搜索结果",
               score: item.score || 0.8,
+              url: item.url || null,
             });
           }
         });
@@ -437,6 +438,7 @@ async function search_web(query) {
             snippet: (item.snippet || item.description || "").slice(0, 1200),
             source: item.title || item.link || "网络搜索结果",
             score: item.position ? 1.0 / (item.position + 1) : 0.8,
+            url: item.link || null,
           }));
         }
       } catch (serperErr) {
@@ -1422,7 +1424,7 @@ ${contextText}
           return `$^{${replaced}}$`;
         });
 
-        // 使用新的连续编号创建 sources
+        // 使用新的连续编号创建 sources（联网搜索时包含 url 供前端生成可点击链接）
         sources = usedIdxOrder
           .map((originalIdx, newIdx) => {
             const s = results[originalIdx - 1];
@@ -1435,7 +1437,11 @@ ${contextText}
             const snippetWithTitle = `[${newNum}]《${sourceLabel}》：${String(
               s?.snippet || ""
             ).slice(0, 80)}……`;
-            return { snippetWithTitle, score: s?.score };
+            return {
+              snippetWithTitle,
+              score: s?.score,
+              url: s?.url || null,
+            };
           })
           .filter(Boolean);
       } else {
