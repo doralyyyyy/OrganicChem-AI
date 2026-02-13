@@ -45,7 +45,7 @@ import "katex/contrib/mhchem";
 
 // 界面参数
 const MAX_HISTORY = 50;
-const PANEL_H = "h-[115vh] sm:h-[110vh] md:h-[97vh]"; // 左侧卡片固定高度
+const PANEL_H = "h-[115vh] sm:h-[110vh] md:h-[95vh]"; // 左侧卡片固定高度
 
 function formatDate(ts) {
   try {
