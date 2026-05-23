@@ -1,101 +1,101 @@
 # OrganicChem-AI
 
-> **在北京大学校园网环境下/校外师生连接了北大内网VPN时，如仅想快速体验，无需部署即可直接访问：**
+> **If you are on the Peking University campus network, or off-campus but connected to the PKU intranet VPN, and only want a quick trial, you can access the app directly without deployment:**
 >
 > **[http://10.129.243.50:5173/](http://10.129.243.50:5173/)**
 >
-> 若访问或使用异常，可能由于本网站或PKU CLab平台正处于停机维护阶段，届时可参考以下内容进行本地部署或调试
+> If access or usage is abnormal, the website or PKU CLab platform may be under maintenance. In that case, follow the instructions below for local deployment or debugging.
 
-## 一、运行环境
+## 1. Runtime Environment
 
-> 运行时请开启国外代理，否则部分功能将无法使用
+> Please enable an overseas proxy during runtime, otherwise some features may not work.
 
 **Node.js 20.19.5**
 
-* 前往 [Node.js 官网](https://nodejs.org/) 下载并安装 **Node.js 20.19.5**。
-* 或直接下载压缩包：[Node.js v20.19.5](https://nodejs.org/dist/v20.19.5/)，解压后将 `node.exe` 所在文件夹的路径添加到系统环境变量中。
+* Go to the [Node.js official website](https://nodejs.org/) and install **Node.js 20.19.5**.
+* Or download the archive directly: [Node.js v20.19.5](https://nodejs.org/dist/v20.19.5/). After extraction, add the folder containing `node.exe` to your system environment variables.
 
-**.env 文件**
+**`.env` File**
 
-* **首次运行前必须配置 `.env` 文件**：复制 `.env.example` 为 `.env`，并根据注释填写必需的配置项（API密钥、邮箱等）。
+* **You must configure the `.env` file before the first run**: copy `.env.example` to `.env`, then fill in required fields according to the comments (API key, email, etc.).
 
-* 若需要可供直接使用 `.env` 文件，请私下联系本作者。
+* If you need a ready-to-use `.env` file, please contact the author privately.
 
-**数据库文件**
+**Database Files**
 
-* 由于数据库文件过大无法上传至Github，请在 [北大网盘](https://disk.pku.edu.cn/link/AA53BE8BB4F83E488F8896910B2368FB84) 中下载 `memory.db`、`memory.db-shm`、`memory.db-wal` 及 `covers` 文件夹 ，并将其放入主目录文件夹中。
+* Because the database files are too large for GitHub, please download `memory.db`, `memory.db-shm`, `memory.db-wal`, and the `covers` folder from [PKU Cloud Disk](https://disk.pku.edu.cn/link/AA53BE8BB4F83E488F8896910B2368FB84), then place them in the project root directory.
 
 ---
 
-## 二、电脑端运行方式
+## 2. Desktop Setup
 
-1. 下载并解压项目文件夹，使用 **VS Code** 打开项目根目录。
-2. 在终端运行以下命令安装依赖：
+1. Download and extract the project folder, then open the project root in **VS Code**.
+2. Run the following command in terminal to install dependencies:
 
    ```bash
    npm install
    ```
-3. 修改 `.env` 文件，确保：
+3. Update `.env` and make sure:
 
    ```bash
    VITE_API_BASE=http://localhost:3001
    ```
-4. 启动前端：
+4. Start the frontend:
 
    ```bash
    npm run dev
    ```
-5. 新建一个终端窗口（仍在项目根目录），启动后端服务：
+5. Open a new terminal window (still in the project root) and start the backend service:
 
    ```bash
    node server.js
    ```
-6. 在电脑浏览器打开并访问：
+6. Open this URL in your desktop browser:
 
    ```bash
    http://localhost:5173/
    ```
 
-   **建议使用 Chrome 或 Edge 浏览器**，以支持语音输入功能。
+   **Chrome or Edge is recommended** for voice input support.
 
 ---
 
-## 三、移动端运行方式
+## 3. Mobile Setup
 
-> **移动端访问说明**
+> **Mobile Access Notes**
 >
-> 默认情况下，移动端访问需确保移动端设备与电脑处于同一局域网，且该局域网未设置端与端隔离（如北京大学校园网由于设有端与端隔离，默认方式无法使用）。
+> By default, mobile access requires the mobile device and computer to be on the same LAN, and the LAN must not enforce client isolation (for example, PKU campus network has client isolation, so the default method may not work).
 >
-> 若仅为测试或本地使用，可在手机上开启热点，并让电脑连接该热点，即可正常访问。
+> For local testing, you can enable a hotspot on your phone and connect the computer to that hotspot.
 >
-> **若希望在不同网络下访问**，可参照 [https://github.com/doralyyyyy/QChat](https://github.com/doralyyyyy/QChat) 中的网络配置方案修改接口设置，或私下联系作者。
+> **If you need cross-network access**, refer to the network configuration approach in [https://github.com/doralyyyyy/QChat](https://github.com/doralyyyyy/QChat), or contact the author privately.
 
-1. 在电脑端（**VS Code**）打开项目根目录的终端，先用 `--host` 启动前端以便显示 Network 地址：
+1. On desktop (**VS Code**), open a terminal in project root and start the frontend with `--host` so that a Network URL is shown:
 
    ```bash
    npm run dev -- --host
    ```
-2. 在终端输出里找到 **Network** 后面的链接（示例）：
+2. In terminal output, find the URL shown after **Network** (example):
 
    ```bash
    http://192.168.1.10:5173/
    ```
-3. 将该 IP 替换进项目根目录的 `.env`，**但端口改为后端端口 `3001`，并删掉末尾斜杠**，例如：
+3. Replace the IP in `.env` (project root), **change the port to backend port `3001`, and remove the trailing slash**, for example:
 
    ```bash
    VITE_API_BASE=http://192.168.1.10:3001
    ```
-4. 修改完 `.env` 后，重启前端（停止后重新运行）：
+4. After editing `.env`, restart the frontend (stop and run again):
 
    ```bash
    npm run dev -- --host
    ```
-5. 在一个新建终端窗口启动后端服务：
+5. Start backend service in a new terminal window:
 
    ```bash
    node server.js
    ```
-6. 在移动端浏览器中访问前面终端给出的 **Network 链接**（示例）：
+6. Open the **Network URL** shown earlier in a mobile browser (example):
 
    ```bash
    http://192.168.1.10:5173/
@@ -103,27 +103,27 @@
 
 ---
 
-## 四、注意事项
+## 4. Notes
 
-### 1. 软件版本要求
+### 1) Software Version Requirement
 
-* **Node.js**：必须使用 **20.19.5** 版本，不要使用最新版本或其他版本，否则可能出现兼容性问题。
+* **Node.js**: You must use **20.19.5**. Do not use newer or other versions, otherwise compatibility issues may occur.
 
-### 2. 开发环境与运行
+### 2) Development Environment and Runtime
 
-* 推荐使用 **VS Code** 作为开发和使用环境以便同时打开多个终端和查看输出。
-* 前端与后端需同时运行（前端读取 `.env` 中的 `VITE_API_BASE` 以连接后端）。
-* 修改 `.env` 后需要重启前端（`npm run dev`），否则变更不会生效。
+* **VS Code** is recommended so you can open multiple terminals and monitor outputs conveniently.
+* Frontend and backend must run at the same time (frontend reads `VITE_API_BASE` in `.env` to connect to backend).
+* After modifying `.env`, restart frontend (`npm run dev`) or changes will not take effect.
 
-### 3. 网络与设备
+### 3) Network and Devices
 
-* 移动端访问电脑的 Network 链接时，**移动端与电脑须连接同一局域网**（也可使用内网穿透工具建立连接），并确保电脑防火墙允许 5173/3001 端口的局域网访问。
-* **平板电脑 / iPad 请使用横屏浏览**。
+* When mobile accesses the desktop Network URL, **mobile and desktop must be on the same LAN** (or use a tunneling tool), and ensure desktop firewall allows LAN access to ports `5173` and `3001`.
+* **For tablets / iPad, use landscape orientation**.
 
-### 4. 浏览器与语音输入
+### 4) Browser and Voice Input
 
-* 电脑端建议使用 **Chrome** 或 **Edge** 浏览器，其他浏览器可能无法使用语音输入功能。
-* 由于移动端浏览器限制（HTTP 协议权限较低），移动端部分机型（如华为）可能无法使用语音输入功能；对于支持的系统（如iOS等），请确保已为浏览器及端口开启 **录音权限**，并开启类似 **“智能语音输入”** 的功能，即可正常使用语音输入。
-* 若出现“network”报错，表明未成功与境外服务器连接，需开启国外代理。
-* 若出现“not-allowed”报错，表明浏览器未对该网址开启麦克风权限。
-* 若出现“Failed to fetch”报错，大概率为后端配置出错，请严格按照**二、三**中步骤进行配置。
+* On desktop, **Chrome** or **Edge** is recommended. Other browsers may not support voice input.
+* Due to mobile browser limitations (lower permission level over HTTP), some mobile devices (e.g., some Huawei models) may not support voice input. On supported systems (such as iOS), make sure browser and port permissions include **microphone access**, and enable features similar to **“smart voice input”**.
+* If you see a `"network"` error, it means connection to overseas services failed; enable an overseas proxy.
+* If you see a `"not-allowed"` error, microphone permission is not granted for this site.
+* If you see a `"Failed to fetch"` error, backend configuration is likely incorrect. Follow the steps in sections **2** and **3** strictly.
